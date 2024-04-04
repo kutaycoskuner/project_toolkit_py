@@ -3,7 +3,7 @@ Small python projects for small utilities.
 
 | Project Started | Last Update |
 | :-------------- | :---------- |
-| 17 Mar 2024     | 18 Mar 2024 |
+| 17 Mar 2024     | 04 Apr 2024 |
 
 # Table of Contents
 

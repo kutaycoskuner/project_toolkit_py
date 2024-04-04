@@ -8,6 +8,16 @@
 
 # Blackboard
 
+# Todo Toolkits
+- file renamer
+- gif editor
+- json editor
+- cubemap converter
+- german training app
+- node graph builder/visualizer
+- time spend calculaator
+- graph visualizer
+
 # How to
 - <install virtual environment>
     - (opt) upgrade your pip ` python.exe -m pip install --upgrade pip`

@@ -73,7 +73,7 @@ def blackboard():
                 
         elif mod == "collapse":
             value = abs(math.tan(time.time()-difference))
-            if value < 0.2:
+            if value < 0.1:
                 value = 0.0
                 time_pin = time.time()
                 mod = "waiting0"

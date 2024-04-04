@@ -42,6 +42,11 @@
 - push
 
 # Log 
+- [0.11] add: file_renamer
+    - 04-Apr-2024 
+        - add: file renamer
+        - arch: split templte in _template folder
+
 - [0.10] add: data visualizer
     - 18-Mar-2024
         - add: wait - 0-infinite algorithm
