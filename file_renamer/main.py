@@ -7,8 +7,8 @@ pip install ...
 
 - use case
     - modification options
-        - full name change with number 001          : <rename>
-        - add prefix to name                        : <prefix>_name
+        - [x] full name change with number 001          : <rename>
+        - [x] add prefix to name                        : <prefix>_name
         - full name change with unique identifier   : <id>
     
     - algorithm
@@ -18,7 +18,6 @@ pip install ...
 
 - todo
     - add optional date
-    - add only suffix without name change
     - add id
 '''
 # ----------------------------------------------------------------------------------------
@@ -33,14 +32,27 @@ import glob     # global: is a function that’s used to search for files that m
 # ----------------------------------------------------------------------------------------
 path                = ""
 pattern             = "*"
-rename_template     = "potatoes"
-increment_decimal   = 3
-prefix              = ""
+rename_template     = "potato"
+increment_decimal   = 2
+prefix              = "ref"
 
 # ----------------------------------------------------------------------------------------
 # ----- functions
 # ----------------------------------------------------------------------------------------
-def change_full_name(path, file_list):
+def get_name(old_name, extension, iterator) -> str:
+    if prefix != "" and rename_template != "":
+        new_filename = f"{prefix}_{rename_template}{iterator}{extension}"
+    elif prefix != "" and rename_template == "":
+        new_filename = f"{prefix}_{old_name}{extension}"
+    elif rename_template != "":
+        new_filename = f"{rename_template}_{iterator}{extension}"
+    return new_filename
+
+def display_change_before_confirm(path, file_list):
+    if rename_template == "" and prefix == "":
+        print("You need to give either rename template or prefix")
+        return
+    print("In path '", path, "'", len(file_list), "files found :")
     for index, file_name in enumerate(file_list):
         file_path = os.path.join(path, file_name)
         if os.path.isfile(file_path):
@@ -50,14 +62,31 @@ def change_full_name(path, file_list):
             # Construct the new full path for the renamed file
             iterator = f'{index+1:0{increment_decimal}}'
 
-            if prefix != "":
-                new_filename = f"{prefix}_{rename_template}_{iterator}{extension}"
-            else:
-                new_filename = f"{rename_template}_{iterator}{extension}"
+            new_filename = get_name(old_name, extension, iterator)
+                
+            try:
+                # Rename the file
+                print(f"\tOld: {old_name}{extension}")
+                print(f"\tNew: {new_filename}")
+            except Exception as e:
+                print(f"Error renaming {file_name}: {e}")
+
+def change_full_name(path, file_list) -> bool:
+    if rename_template == "" and prefix == "":
+        print("You need to give either rename template or prefix")
+        return
+    for index, file_name in enumerate(file_list):
+        file_path = os.path.join(path, file_name)
+        if os.path.isfile(file_path):
+            full_path_wo_extension, extension = os.path.splitext(file_name)
+            old_name =  re.sub(re.escape(path), "", full_path_wo_extension)
+            old_name = old_name[1:]
+            # Construct the new full path for the renamed file
+            iterator = f'{index+1:0{increment_decimal}}'
+
+            new_filename = get_name(old_name, extension, iterator)
             new_filepath = os.path.join(path, new_filename)
 
-            # print(prefix, rename_template, iterator, extension)
-            # print(file_path, new_filepath)            
             try:
                 # Rename the file
                 os.rename(file_path, new_filepath)
@@ -65,6 +94,8 @@ def change_full_name(path, file_list):
                 print(f"\tNew: {new_filepath}")
             except Exception as e:
                 print(f"Error renaming {file_name}: {e}")
+                return False
+        return True
 
 # ----------------------------------------------------------------------------------------
 # ----- main
@@ -77,17 +108,15 @@ def main():
         print("No path specified or no files found")
         return        
         
-    print(path, "' :")
-    for file in file_list:
-        print(file)
+    display_change_before_confirm(path, file_list)
 
     # ask confirmation for change:
-    print("All files names going to be replaced with:", rename_template) 
     confirm = input("Are you sure you want to rename these files in this folder? (y/n): ")
     if confirm.lower() != 'y':
         print("Operation aborted.")
         return
-    change_full_name(path, file_list)
+    if change_full_name(path, file_list):
+        print("Operation completed.")
 
 # ----------------------------------------------------------------------------------------
 # ----- start

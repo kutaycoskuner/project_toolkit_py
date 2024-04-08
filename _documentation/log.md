@@ -42,6 +42,10 @@
 - push
 
 # Log 
+- [0.12] file_renamer add prefix
+    - add file renamer display edit before confirmation
+    - add file renamer add prefix without name change
+
 - [0.11] add: file_renamer
     - 04-Apr-2024 
         - add: file renamer
