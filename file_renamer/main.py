@@ -32,9 +32,9 @@ import glob     # global: is a function that’s used to search for files that m
 # ----------------------------------------------------------------------------------------
 path                = ""
 pattern             = "*"
-rename_template     = "potato"
+rename_template     = "asdf"
 increment_decimal   = 2
-prefix              = "ref"
+prefix              = "foto"
 
 # ----------------------------------------------------------------------------------------
 # ----- functions
@@ -90,12 +90,10 @@ def change_full_name(path, file_list) -> bool:
             try:
                 # Rename the file
                 os.rename(file_path, new_filepath)
-                print(f"\tOld: {file_name}")
-                print(f"\tNew: {new_filepath}")
             except Exception as e:
                 print(f"Error renaming {file_name}: {e}")
                 return False
-        return True
+    return True
 
 # ----------------------------------------------------------------------------------------
 # ----- main
