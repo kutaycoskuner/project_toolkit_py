@@ -32,9 +32,9 @@ import glob     # global: is a function that’s used to search for files that m
 # ----------------------------------------------------------------------------------------
 path                = ""
 pattern             = "*"
-rename_template     = "asdf"
+rename_template     = ""
 increment_decimal   = 2
-prefix              = "foto"
+prefix              = ""
 
 # ----------------------------------------------------------------------------------------
 # ----- functions

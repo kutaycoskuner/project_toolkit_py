@@ -42,6 +42,10 @@
 - push
 
 # Log 
+- [0.13] pixel_matcher
+    - add pixel_matcher find part 
+    - add pixel_matcher exact match
+
 - [0.12] file_renamer add prefix
     - add file renamer display edit before confirmation
     - add file renamer add prefix without name change
