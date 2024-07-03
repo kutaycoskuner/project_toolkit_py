@@ -23,5 +23,5 @@
     - (opt) upgrade your pip ` python.exe -m pip install --upgrade pip`
     - installing virtual environment
         - install virtual environment  `py -m venv .venv`
-        - activate virtual environment `.\.venv\scripts\activate`
+        - activate virtual environment `.\.venv\scripts\activate` | deactivate
         - return to root `cd ../../`

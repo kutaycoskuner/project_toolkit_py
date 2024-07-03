@@ -42,6 +42,9 @@
 - push
 
 # Log 
+- [0.14] pixel matcher opengl update
+    - 03-Jul-2024 adaptability for opengl renderer test scenes
+
 - [0.13] pixel_matcher
     - add pixel_matcher find part 
     - add pixel_matcher exact match

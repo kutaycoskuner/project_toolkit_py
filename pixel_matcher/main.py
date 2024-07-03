@@ -4,6 +4,9 @@
 # ----------------------------------------------------------------------------------------
 '''
 - description
+    - compares two images in a in a folder by adress and presents if there is difference amongst them
+    - folder: work_folder
+        - images 
 
 - metadata
 
@@ -26,16 +29,17 @@ import numpy as np
 # ----------------------------------------------------------------------------------------
 # ----- variables
 # ----------------------------------------------------------------------------------------
-work_folder =  "C:\\Users\\kutay\\OneDrive\\Documents\\GitHub\\project_toolkit_py\\pixel_matcher\\work_folder"
+work_folder = "C:\\Users\\kutay\\OneDrive\\Documents\\GitHub\\study_opengl\\opengl_renderer\data\\test_scene_frames"
+# "C:\\Users\\kutay\\OneDrive\\Documents\\GitHub\\project_toolkit_py\\pixel_matcher\\work_folder"
 
-img1_file_name = 'base.png'
-img2_file_name = 'diff.png'
+# img1_file_name = 'base.png'
+# img2_file_name = 'diff.png'
 
-pattern_file_name = 'pattern4.jpg'
-find_file_name    = 'find_pattern4.jpg'
+pattern_file_name = 'pattern2.jpg'
+find_file_name    = 'find_pattern3.jpg'
 
-img1_file_path = os.path.join(work_folder, pattern_file_name)
-img2_file_path = os.path.join(work_folder, find_file_name)
+# img1_file_path = os.path.join(work_folder, pattern_file_name)
+# img2_file_path = os.path.join(work_folder, find_file_name)
 
 tolerance_limit = 60
 
@@ -52,9 +56,12 @@ def calc_tolerance(pixel1, pixel2) -> int:
 
 def compare_images(image1_path, image2_path) -> bool:
     # Read the images
-    pattern = cv2.imread(img1_file_path)
-    search = cv2.imread(img2_file_path)
+    pattern = cv2.imread(image1_path)
+    search = cv2.imread(image2_path)
     
+    if (pattern.any() == None or search.any() == None):
+        print(pattern)
+        return
     # Compare each pixel
     search_height, search_width, _ = search.shape
     p_height, p_width, _ = pattern.shape
@@ -88,12 +95,25 @@ def compare_images(image1_path, image2_path) -> bool:
     
     return percentage_difference
 
+def count_files_in_directory(directory) -> int:
+    # List all entries in the directory
+    entries = os.listdir(directory)
+    
+    # Filter out only files
+    files = [entry for entry in entries if os.path.isfile(os.path.join(directory, entry))]
+    
+    return len(files)
+
 # ----------------------------------------------------------------------------------------
 # ----- main
 # ----------------------------------------------------------------------------------------
 def main():
-    difference_percentage = compare_images(img1_file_path, img2_file_path)
-    print("Pattern Exists:", difference_percentage)
+    test_count = int(count_files_in_directory(work_folder)/2)
+    for i in range(test_count):
+        img1_file_path = os.path.join(work_folder, "scene" + str(i) + "_base.png")
+        img2_file_path = os.path.join(work_folder, "scene" + str(i) + "_test.png")
+        difference_percentage = compare_images(img1_file_path, img2_file_path)
+        print("Scene", i," pixel matching:", difference_percentage)
 
 # ----------------------------------------------------------------------------------------
 # ----- start
