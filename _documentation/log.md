@@ -42,6 +42,9 @@
 - push
 
 # Log 
+- [0.15] text recognition from pdf
+    - 09-Jul-2024 add text recognition
+
 - [0.14] pixel matcher opengl update
     - 03-Jul-2024 adaptability for opengl renderer test scenes
 

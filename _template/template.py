@@ -12,6 +12,8 @@
 - install
     - pip install ...
 
+- sources
+
 - todo
 
 '''
