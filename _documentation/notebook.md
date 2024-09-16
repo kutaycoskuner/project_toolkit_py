@@ -31,6 +31,8 @@
     - installing virtual environment
         - install virtual environment  `py -m venv .venv`
         - activate virtual environment `.\.venv\scripts\activate` | deactivate
+            - python version might cause a problem on venv
+                - incase check vnev/pyenv.cfg paths and version of python interpreter
         - return to root `cd ../../`
 
 - <problems>

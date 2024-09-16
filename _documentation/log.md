@@ -42,6 +42,12 @@
 - push
 
 # Log 
+- [0.16] upg: file renamer
+    - 16-Sep-2024 update readme
+    - 16-Jul-2024 
+        - add make all lowercase
+        - add add or change extension
+
 - [0.15] text recognition from pdf
     - 09-Jul-2024 add text recognition
 
