@@ -42,6 +42,9 @@
 - push
 
 # Log 
+- [0.17] add image resizer
+    - 12-Jan-2025 add image resizer
+
 - [0.16] upg: file renamer
     - 16-Sep-2024 update readme
     - 16-Jul-2024 
