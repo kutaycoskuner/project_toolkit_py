@@ -32,8 +32,6 @@
     - mix: multiple additions
     - test: testing
 
-# Todo
-
 # Procedure
 - log updates
 - check todo
@@ -41,7 +39,13 @@
 - update timelog
 - push
 
-# Log 
+# Log
+- [todo]
+    - add code licence marker
+
+- [0.18] add markdown template changer
+    - 12-Jan-2025 add markdown template changer
+
 - [0.17] add image resizer
     - 12-Jan-2025 add image resizer
 

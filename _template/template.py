@@ -3,6 +3,11 @@
 #                notes
 # ----------------------------------------------------------------------------------------
 '''
+Kutay Coskuner, 2025
+This code is licensed under the MIT License. You can use, modify, and distribute it freely.
+However, it is provided "as is," without any warranties or guarantees of any kind.
+For details, visit: https://opensource.org/licenses/MIT
+
 - description
 
 - metadata
@@ -10,13 +15,15 @@
 - use case
 
 - install
-    - pip install ...
+    - pip install python-dotenv (for using .env values)
 
 - sources
 
 - todo
 
 '''
+
+
 # ----------------------------------------------------------------------------------------
 #                libraries
 # ----------------------------------------------------------------------------------------
@@ -34,6 +41,7 @@
 # ----------------------------------------------------------------------------------------
 def main():
     pass
+
 
 # ----------------------------------------------------------------------------------------
 #                start
