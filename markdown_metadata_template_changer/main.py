@@ -82,13 +82,18 @@ def extract_metadata(content):
 
 def merge_metadata(old_metadata, default_metadata):
     """Merge old metadata with new defaults"""
+    tags = old_metadata.get('tags', [])
+    if isinstance(tags, str):  # If it's a string, split by ';' and strip any spaces
+        tags = [tag.strip() for tag in tags.split(';') if tag.strip()]
+    elif isinstance(tags, list):  # If it's already a list, just strip any spaces
+        tags = [tag.strip() for tag in tags if tag.strip()]
     return {
-        'template': old_metadata.get('template', default_metadata['template']),
+        'template': default_metadata['template'],
         'revision': old_metadata.get('version', default_metadata['revision']),
         'title': old_metadata.get('title', default_metadata['title']),
         'description': old_metadata.get('description', default_metadata['description']),
         'category': default_metadata['category'],
-        'tags': [tag.strip() for tag in old_metadata.get('tags', '').split(';') if tag.strip()],
+        'tags': tags,
         'created': old_metadata.get('date', default_metadata['created']),
         'updated': datetime.now().strftime('%Y-%m-%d').strip(),
         'author': default_metadata['author'],

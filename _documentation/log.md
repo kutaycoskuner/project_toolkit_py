@@ -43,6 +43,9 @@
 - [todo]
     - add code licence marker
 
+- [0.18.1] fix tag split issue
+    - 12-Jan-2025 fix tag split problem
+
 - [0.18] add markdown template changer
     - 12-Jan-2025 add markdown template changer
 
