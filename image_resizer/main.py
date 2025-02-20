@@ -40,7 +40,7 @@ from dotenv import load_dotenv
 load_dotenv()
 INPUT_FOLDER = os.getenv("INPUT_FOLDER")  # Path to 4K textures
 OUTPUT_FOLDER = os.getenv("OUTPUT_FOLDER")  # Path to save 2K textures
-TARGET_SIZE = (2048, 2048)  # Resize target dimensions
+TARGET_SIZE = (1024, 1024)  # Resize target dimensions
 
 # ----------------------------------------------------------------------------------------
 # ----- functions

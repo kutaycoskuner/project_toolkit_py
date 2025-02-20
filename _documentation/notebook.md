@@ -20,11 +20,14 @@
 
 # How to
 - <new project>
-    - proje dosyasi ac
-    - virtual environmet kur
-    - paketleri yukle
-    - main.py yi yarat ve basla
+    - proje dosyasi yarat
+    - cd <proje-dosyasi>
+    - virtual environmet kur (py -m venv .venv)
+    - .\.venv\scripts\activate
+    - paketleri yukle ex. pip install dotenv
+    - main.py yi yarat template den kopyala ve bazi yapistir
     - gerekirse ek klasorler olustur work file vs gibi
+    - .env dosasi olusturup gizli degiskenleri onun icine at gtihuba gecmiyor
 
 - <install virtual environment>
     - (opt) upgrade your pip ` python.exe -m pip install --upgrade pip`

@@ -34,6 +34,7 @@
 
 # Procedure
 - log updates
+- add desc to readme if new tool exists
 - check todo
 - update version and date
 - update timelog
@@ -42,6 +43,9 @@
 # Log
 - [todo]
     - add code licence marker
+
+- [0.19.0] markdown essay formatter
+    - 20-Feb-2025 add markdown essay formatter
 
 - [0.18.1] fix tag split issue
     - 12-Jan-2025 fix tag split problem

@@ -8,7 +8,7 @@
 
 <p align="center">
     <img alt="Python" src="https://img.shields.io/badge/Python-3.11.4-blue?logo=python&logoColor=white" />
-    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.18.1-blue" />
+    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.19.0-blue" />
     <img alt="Project Start" src="https://img.shields.io/badge/project_start-17_Mar_2024-blue" />
     <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py" />
 </p>
@@ -64,6 +64,13 @@
 ###
 
 # Tools
+### Markdown Tools
+Tools to automate and format markdown documents.   
+`markdown_metadata_template_changer` a tool to change `---` block from one template to another. Rules need to be declared to use this tool.  
+`markdown_formatter` a tool to format markdown essays (experimental)
+
+**use case**: Format and batch revise markdown files.
+
 ### Graph Visualizer
 A simple tool visualize mathematically defined functions on two parameter relations.
 
