@@ -44,6 +44,11 @@
 - [todo]
     - add code licence marker
 
+- [0.20] init text_to_image
+    - 20250925
+        - gitignore _output
+        - init text_to_image
+
 - [0.19.0] markdown essay formatter
     - 20-Feb-2025 add markdown essay formatter
 
