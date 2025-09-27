@@ -8,7 +8,7 @@
 
 <p align="center">
     <img alt="Python" src="https://img.shields.io/badge/Python-3.11.4-blue?logo=python&logoColor=white" />
-    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.19.0-blue" />
+    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.20.1-blue" />
     <img alt="Project Start" src="https://img.shields.io/badge/project_start-17_Mar_2024-blue" />
     <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py" />
 </p>
@@ -64,18 +64,6 @@
 ###
 
 # Tools
-### Markdown Tools
-Tools to automate and format markdown documents.   
-`markdown_metadata_template_changer` a tool to change `---` block from one template to another. Rules need to be declared to use this tool.  
-`markdown_formatter` a tool to format markdown essays (experimental)
-
-**use case**: Format and batch revise markdown files.
-
-### Graph Visualizer
-A simple tool visualize mathematically defined functions on two parameter relations.
-
-**use case**: Finding the right timing function for animations.
-
 ### File Renamer
 Automate file renaming in a specified directory with customization options such as:
 
@@ -83,10 +71,22 @@ Automate file renaming in a specified directory with customization options such 
 - Changing case (e.g., uppercase, lowercase).
 - Overriding file extensions.
 
+### Graph Visualizer
+A simple tool visualize mathematically defined functions on two parameter relations.
+
+**use case**: Finding the right timing function for animations.
 **Use case**: Useful for organizing images, files, and bulk renaming tasks.
+
+### Markdown Tools
+Tools to automate and format markdown documents.   
+`markdown_metadata_template_changer` a tool to change `---` block from one template to another. Rules need to be declared to use this tool.  
+`markdown_formatter` a tool to format markdown essays (experimental)
+
+**use case**: Format and batch revise markdown files.
 
 ### Pixel Matcher
 A tool to compare the similarity between two images by analyzing pixel color differences.
+
 
 Use case: Designed as a testing tool for 3D rendering projects to detect unintended scene changes.
 
@@ -94,6 +94,15 @@ Use case: Designed as a testing tool for 3D rendering projects to detect uninten
 An OCR (Optical Character Recognition) tool for extracting text from PDFs or images, converting it into raw .txt or .md files.
 
 **Use case**: Parsing text content from human-readable documents.
+
+### Text to Image (syntax highlighter)
+
+A utility that converts code or text snippets into styled images with customizable syntax highlighting, alignment, margins, and framing. Supports adding titles, headings, and themed color schemes for different platforms (e.g., PowerShell, Python).
+
+Use case: Creating visually appealing code snippets or documentation graphics for presentations, tutorials, or social media.
+
+
+### 
 
 ---
 

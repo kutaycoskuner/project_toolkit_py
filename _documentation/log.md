@@ -34,15 +34,21 @@
 
 # Procedure
 - log updates
-- add desc to readme if new tool exists
-- check todo
 - update version and date
+- check todo
+- add desc to readme if new tool exists
 - update timelog
 - push
 
 # Log
 - [todo]
     - add code licence marker
+
+- [0.20.1] add text_to_image margins, font scaling
+    - 20250927
+        - add text_to_image auto font scaling
+        - add text_to_image color on phrase on each row
+        - add text_to_image margin
 
 - [0.20] init text_to_image
     - 20250925
