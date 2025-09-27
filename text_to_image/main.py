@@ -34,6 +34,7 @@ from PIL import Image, ImageDraw, ImageFont
 from matplotlib import font_manager
 import os
 from dotenv import load_dotenv
+import json
 import argparse
 
 # ----------------------------------------------------------------------------------------
@@ -135,44 +136,51 @@ class TextImage:
         self.font = ImageFont.truetype(font_path, target_size)
         self.line_height = int(self.font_size * 1.2)
         
-    def draw_frame(self, top_row, bottom_row, color="#555555", width=3):
-        """Draw a frame around rows with padding: 2 rows up/down, 50% side margins."""
+    def draw_code_block(self, title="PowerShell",
+                        frame_color="#00E5FF", bg_color="#1E1E1E",
+                        text_color="#FFFFFF", width=4, radius=20):
+        """Draw a code block around the current text rows with a rounded frame and header bar."""
+        if not self.rows:
+            return
+
         # Ensure font/line_height is ready
         if not hasattr(self, "line_height"):
             self._adjust_font_size()
 
-        top_y = self.height * self.v_margin + (top_row - 2) * self.line_height
-        bottom_y = self.height * self.v_margin + (bottom_row + 3) * self.line_height
+        # Get first and last text row indices
+        row_numbers = sorted(self.rows.keys())
+        top_row = row_numbers[0]
+        bottom_row = row_numbers[-1]
+
+        # Total height of the text block
+        row_count = bottom_row - top_row + 1
+        available_height = self.height * (1 - 2 * self.v_margin)
+        total_height = self.line_height * row_count
+        offset_y = (available_height - total_height) / 2
+        start_y = self.height * self.v_margin + offset_y
+
+        # Frame positions with padding 2 rows above and below
+        frame_top_y = start_y - 3 * self.line_height
+        frame_bottom_y = start_y + (row_count + 2) * self.line_height
         left_x = self.width * (self.h_margin * 0.5)
         right_x = self.width * (1 - self.h_margin * 0.5)
 
-        self.draw.rectangle(
-            [left_x, top_y, right_x, bottom_y],
-            outline=hex_to_rgb(color),
-            width=width
+        # Draw rounded rectangle frame
+        self.draw.rounded_rectangle(
+            [left_x, frame_top_y, right_x, frame_bottom_y],
+            outline=hex_to_rgb(frame_color),
+            width=width,
+            radius=radius,
+            fill=None
         )
 
-        
-    def add_heading(self, text, color="#FFFFFF", bg_color="#222222"):
-        """Draw a heading bar above the frame, like a terminal tab."""
-        heading_height = int(self.line_height * 1.5)
-        left_x = self.width * (self.h_margin * 0.5)
-        right_x = self.width * (1 - self.h_margin * 0.5)
+        # Title text (left-aligned inside the frame, horizontal padding = 50% of h_margin)
+        title_padding = (self.width * self.h_margin * 0.5)
+        title_x = left_x + title_padding
+        title_y = frame_top_y + (self.line_height * 0.5)  # slight vertical padding
+        self.draw.text((title_x, title_y), title, fill=hex_to_rgb(text_color), font=self.font)
 
-        # Draw background bar
-        self.draw.rectangle(
-            [left_x, self.v_margin * self.height - heading_height,
-            right_x, self.v_margin * self.height],
-            fill=hex_to_rgb(bg_color)
-        )
 
-        # Center text
-        bbox = self.draw.textbbox((0, 0), text, font=self.font)
-        text_width = bbox[2] - bbox[0]
-        x = (self.width - text_width) // 2
-        y = int(self.v_margin * self.height - heading_height * 0.75)
-
-        self.draw.text((x, y), text, fill=hex_to_rgb(color), font=self.font)
 
     def render_rows(self):
         if not self.rows:
@@ -249,6 +257,10 @@ def test02(ti):
         # Save
         ti.save("class_test.png")
 
+def load_rows_from_file(path="rows.json"):
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
 def enter_your_text(ti):
     # Row 0
     ti.add_phrase(0, "# ", "#AAAAAA")
@@ -296,6 +308,7 @@ def enter_your_text(ti):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--setup", action="store_true", help="Create .env file from template")
+    parser.add_argument("--data", default="rows.json", help="JSON file with row definitions")
     args = parser.parse_args()
 
     if args.setup:
@@ -304,15 +317,37 @@ def main():
     else:
         print("> normal mode")
         ti = TextImage(
-        width=1920,
-        height=1080,
-        bg_color="#101010",
-        font_size=100,
-        v_margin=0.05,
-        h_margin=0.05,
-        alignment="center"  # try "left", "center", "right"
+            width=1920,
+            height=1080,
+            bg_color="#101010",
+            font_size=100,
+            v_margin=0.05,
+            h_margin=0.05,
+            alignment="center"
         )
-        enter_your_text(ti)
+
+    rows = load_rows_from_file(args.data)
+
+    # Check for title
+    title = rows.pop("title", None)
+
+    # Fill text from external file
+    for row_number, row_parts in rows.items():
+        for text, color in row_parts:
+            ti.add_phrase(int(row_number), text, color)
+
+    # If title exists, render it two rows above the first row
+    if title:
+        ti.draw_code_block(
+            title= title["text"],
+            text_color=title["color"],
+            frame_color= "#262626",
+            bg_color="#222222",
+            radius=12  # nice rounded corners
+            )
+
+
+    ti.save("rendered.png")
 
 
 

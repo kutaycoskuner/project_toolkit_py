@@ -44,6 +44,10 @@
 - [todo]
     - add code licence marker
 
+- [0.20.2] arch text_to_image split data
+    - 20250927
+        - arch text_to_image split data
+
 - [0.20.1] add text_to_image margins, font scaling
     - 20250927
         - add text_to_image auto font scaling

@@ -1,0 +1,34 @@
+{
+    "title": {
+        "text": "windows powershell",
+        "color": "#666666",
+        "bg_color": "#626262"
+    },
+    "0": [
+        ["# ", "#BBBBBB"],
+        ["Create a symlink to a file", "#FFFFFF"]
+    ],
+    "1": [
+        ["New-Item ", "#00FF00"],
+        ["-ItemType ", "#00CCFF"],
+        ["SymbolicLink ", "#FF33FF"],
+        ["-Path ", "#00CCFF"],
+        ["\"C:\\linked\\symlinked.txt\" ", "#FFFF33"],
+        ["-Target ", "#00CCFF"],
+        ["\"C:\\realdata\\realdata.txt\"", "#FFFF33"]
+    ],
+    "2": [["", "#FFFFFF"]],
+    "3": [
+        ["# ", "#BBBBBB"],
+        ["Create a symlink to a folder", "#FFFFFF"]
+    ],
+    "4": [
+        ["New-Item ", "#00FF00"],
+        ["-ItemType ", "#00CCFF"],
+        ["SymbolicLink ", "#FF33FF"],
+        ["-Path ", "#00CCFF"],
+        ["\"C:\\linked\\linked_directory\" ", "#FFFF33"],
+        ["-Target ", "#00CCFF"],
+        ["\"D:\\realdata\\project\"", "#FFFF33"]
+    ]
+}
