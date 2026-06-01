@@ -24,7 +24,13 @@
     - cd <proje-dosyasi>
     - virtual environmet kur (py -m venv .venv)
     - .\.venv\scripts\activate
-    - paketleri yukle ex. pip install dotenv
+        - after to leave: `deactivate`
+    - if you have requirements.txt
+        - pip install -r requirements.txt
+    - paketleri yukle 
+        - ex. `pip install dotenv`
+        - ex. `pip install pyyaml`
+        - pip freeze > requirements.txt
     - main.py yi yarat template den kopyala ve bazi yapistir
     - gerekirse ek klasorler olustur work file vs gibi
     - .env dosasi olusturup gizli degiskenleri onun icine at gtihuba gecmiyor
