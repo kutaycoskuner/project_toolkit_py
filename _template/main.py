@@ -2,7 +2,7 @@
 #   author          : Kutay Coskuner
 #   ai-contributors : Claude Opus 5.5 (claude-opus-5-5)
 #   last update     : 2026-10-04
-#   template        : 2.0.0
+#   template        : 3.0.0
 #   disclaimer      : Provided as is, without warranty of any kind; use at your own risk.
 #                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
@@ -14,16 +14,18 @@ every .txt file in the input folder to the output folder.
 
 1. Bare run prints this guide and exits (no-args-usage-guide).
 2. The first real run offers to create config.yaml from config.example.yaml
-   (ensure_config).
-3. Settings come from CLI flags > .env > config.yaml > DEFAULTS (load_settings).
+   (ensure_config); later runs warn when its keys differ from the example's
+   (check_config_keys).
+3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
 4. The input folder is processed into the output folder (run).
 
 Requires: this folder's .venv (pip install -r requirements.txt); .env copied from
-.env.example (may stay empty). config.yaml and .env are gitignored: personal paths go
-there, never into the committed config.example.yaml.
+.env.example, for secrets only (may stay empty). config.yaml and .env are gitignored:
+personal paths go in config.yaml, never into the committed config.example.yaml.
 
-Inputs -> outputs: example/input/ -> example/output/ until config.yaml points elsewhere
-(relative paths resolve against this folder).
+Inputs -> outputs: example/input/ -> example/output/ until config.yaml points elsewhere.
+Paths may be absolute (used as-is) or relative: resolved against this tool's folder
+(relative_to: tool, default) or the current working directory (relative_to: cwd).
 
 Run:
     python main.py --run                     process example/input/ into example/output/
@@ -36,7 +38,7 @@ Run:
 #                libraries
 # -----------------------------------------------------------------------------------------
 import argparse
-import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -47,8 +49,9 @@ from dotenv import load_dotenv
 #                variables
 # -----------------------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-DEFAULTS = {"input": "example/input", "output": "example/output", "dry_run": False}
-ENV_KEYS = {"input": "INPUT_DIR", "output": "OUTPUT_DIR"}
+DEFAULTS = {"input": "example/input", "output": "example/output", "relative_to": "tool",
+            "dry_run": False}
+RELATIVE_TO = ("tool", "cwd")
 
 # -----------------------------------------------------------------------------------------
 #                functions
@@ -59,6 +62,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--run", action="store_true", help="run with config defaults")
     parser.add_argument("--input", help="input folder (default: example/input/)")
     parser.add_argument("--output", help="output folder (default: example/output/)")
+    parser.add_argument("--relative-to", choices=RELATIVE_TO,
+                        help="base for relative paths: this tool's folder or the cwd")
     parser.add_argument("--dry-run", action="store_true", default=None,
                         help="show what would happen, write nothing")
     return parser.parse_args(argv)
@@ -90,31 +95,64 @@ def ensure_config(dry_run: bool) -> Path | None:
             answer = ""
             print()
         if answer.strip().lower() == "y":
-            config.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
+            shutil.copyfile(example, config)  # byte-identical, so it diffs cleanly later
             print(f"Created {config.name}; edit it to use your own data.")
             return config
     print("Using config.example.yaml for this run; config.yaml was not created.")
     return example
 
 
+def check_config_keys(loaded: dict) -> None:
+    """
+    Warns when config.yaml and config.example.yaml have different keys.
+
+    config.yaml is a one-time copy, so it silently misses keys added to the example
+    later (they fall back to DEFAULTS) and keeps keys the tool no longer reads.
+    """
+    example = HERE / "config.example.yaml"
+    if not example.exists():
+        return
+    expected = yaml.safe_load(example.read_text(encoding="utf-8")) or {}
+    missing = [key for key in expected if key not in loaded]
+    unknown = [key for key in loaded if key not in expected]
+    if missing:
+        print(f"config.yaml is missing: {', '.join(missing)} (defaults used). "
+              "Copy them from config.example.yaml.")
+    if unknown:
+        print(f"config.yaml has keys this tool doesn't read: {', '.join(unknown)} "
+              "(ignored).")
+
+
 def load_settings(args: argparse.Namespace) -> dict:
     """
-    Merges settings: CLI flags > .env > config.yaml > DEFAULTS.
+    Merges settings: CLI flags > config.yaml > DEFAULTS.
+
+    Paths: an absolute "input"/"output" is used as-is; a relative one is resolved
+    against this tool's folder (relative_to: tool) or the current working directory
+    (relative_to: cwd).
 
     Returns:
-        Settings with "input"/"output" as absolute Paths (relative ones resolve
-        against this folder, not the shell's cwd).
+        Settings with "input"/"output" as absolute Paths.
+
+    Raises:
+        SystemExit: relative_to is neither "tool" nor "cwd".
     """
     settings = dict(DEFAULTS)
     config_file = ensure_config(bool(args.dry_run))
     if config_file:
-        settings.update(yaml.safe_load(config_file.read_text(encoding="utf-8")) or {})
-    load_dotenv(HERE / ".env")
-    settings.update({k: os.environ[e] for k, e in ENV_KEYS.items() if os.environ.get(e)})
+        loaded = yaml.safe_load(config_file.read_text(encoding="utf-8")) or {}
+        if config_file.name == "config.yaml":
+            check_config_keys(loaded)
+        settings.update(loaded)
+    load_dotenv(HERE / ".env")  # secrets only (os.getenv where needed); never settings
     settings.update({k: v for k, v in vars(args).items() if v is not None and k != "run"})
+    if settings["relative_to"] not in RELATIVE_TO:
+        raise SystemExit(f"Invalid relative_to {settings['relative_to']!r} "
+                         "in config.yaml: choose 'tool' or 'cwd'.")
+    base = HERE if settings["relative_to"] == "tool" else Path.cwd()
     for key in ("input", "output"):
         path = Path(settings[key])
-        settings[key] = path if path.is_absolute() else HERE / path
+        settings[key] = path if path.is_absolute() else base / path
     return settings
 
 
@@ -151,7 +189,7 @@ def main(argv: list[str]) -> int:
     if not argv:
         print(__doc__.strip())
         return 0
-    # 2.-3. Settings from CLI, .env, config.yaml (created on the first real run), defaults
+    # 2.-3. Settings from CLI, config.yaml (offered on the first real run), defaults
     settings = load_settings(parse_args(argv))
     if not settings["input"].is_dir():
         print(f"Input folder not found: {settings['input']}")

@@ -6,8 +6,8 @@
     One or two sentences: what this tool does and when you'd use it.
 </p>
 
-<p align="right">
-    <img alt="Template" src="https://img.shields.io/badge/template-2.0.0-blue" />
+<p align="center">
+    <img alt="Template" src="https://img.shields.io/badge/template-3.0.0-blue" />
     <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py?path=tool_folder" />
 </p>
 
@@ -21,8 +21,8 @@ tool_folder/
 ├── example/            # Bundled demo data, processed by default
 │   ├── input/          # Sample input (committed)
 │   └── output/         # Result of the demo run (gitignored)
-├── .env                # Secrets and machine-specific paths (gitignored, copy of .env.example)
-├── .env.example        # Keys .env needs, with empty values
+├── .env                # Secrets only, e.g. API keys (gitignored, copy of .env.example)
+├── .env.example        # Secret keys .env needs, with empty values
 ├── config.yaml         # Your settings, may hold personal paths (gitignored, created on first run)
 ├── config.example.yaml # Default settings with comments (committed)
 ├── main.py             # Entry point; its header docstring explains the steps
@@ -45,9 +45,22 @@ python main.py --help           # All flags
 - First run
     - `config.yaml` doesn't exist in a fresh checkout (it's gitignored); the first real run asks whether to create it from `config.example.yaml`
     - on `n`, without a terminal, or with `--dry-run`, nothing is created and `config.example.yaml` is used for that run
+    - later runs warn when `config.yaml` lacks keys the example has (they use defaults) or has keys the tool doesn't read; copy new keys over after an update
 - Example data
     - as shipped, the tool processes `example/input/` into `example/output/`, so you can see what it does before configuring anything
-    - to use your own data, point `input` / `output` in `config.yaml` (or `.env`, or flags) elsewhere
+    - to use your own data, point `input` / `output` in `config.yaml` (or flags) elsewhere
+- Paths (`input`, `output`)
+    - what you type decides absolute vs. relative; `relative_to` only matters for relative paths
+
+    | You write | `relative_to` | Resolves to |
+    |---|---|---|
+    | `input: C:/Users/me/photos` | ignored | exactly that folder |
+    | `input: example/input` | `tool` (default) | `tool_folder/example/input`, from any folder you run it in |
+    | `input: photos` | `cwd` | `<folder you run the command in>/photos` |
+
+    - absolute on macOS / Linux: `input: /home/me/photos`
+    - Windows: use `/`, or put a path with `\` in single quotes
+    - `cwd` example: `cd D:/data`, then `python <path>/main.py --run --input photos --relative-to cwd` uses `D:/data/photos`
 
 ------------------------------------------------------------------------------------------
 
@@ -56,15 +69,28 @@ python main.py --help           # All flags
 - Read in this order; later sources override earlier ones
     1. defaults in `main.py`
     2. `config.yaml` (offered on the first real run; until then `config.example.yaml`)
-    3. `.env`
-    4. command-line flags
-- Relative paths resolve against this folder, not the folder you run the command from.
+    3. command-line flags
+- Relative paths resolve against `relative_to`: this tool's folder (`tool`, default) or the folder you run the command from (`cwd`).
 
-| Where | What goes there | In git? |
+### `.env` or `config.yaml`?
+
+- rule of thumb: **would leaking it grant access or cost money?** Then `.env`. Otherwise `config.yaml`.
+- every setting has exactly one home; never put the same value in both, or one silently overrides the other
+- both files are gitignored; only `.env.example` and `config.example.yaml` are committed
+
+| | `.env` | `config.yaml` |
 |---|---|---|
-| `config.yaml` | How the tool behaves: modes, patterns, options, and your paths if you like | no, created on the first run (after asking) |
-| `.env` | Secrets and machine-specific paths (`INPUT_DIR`, `OUTPUT_DIR`) | no, copy from `.env.example` |
-| flags | Whatever changes from run to run | — |
+| Holds | secrets: anything that grants access or costs money if leaked | everything else that controls the tool |
+| Examples | API keys, access tokens, passwords, webhook URLs with a token, connection strings with credentials | input/output paths, `relative_to`, modes, patterns, sizes, thresholds, `dry_run`, usernames and IDs that aren't secret |
+| Read by | the code that needs it, with `os.getenv("NAME")` | `load_settings()`, merged with defaults and flags |
+| Committed template | `.env.example`: key names, empty values | `config.example.yaml`: working defaults with comments |
+| Never | paths or behaviour settings | secrets |
+
+| Where | In git? |
+|---|---|
+| `config.yaml` | no, created on the first run (after asking) |
+| `.env` | no, copy from `.env.example` |
+| flags | — (for whatever changes from run to run) |
 
 ------------------------------------------------------------------------------------------
 
@@ -91,7 +117,7 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Create your .env from the example, then fill in its values (config.yaml is created on the first run)
+# Create your .env from the example; it holds secrets only and may stay empty (config.yaml is offered on the first run)
 #   Windows:
 copy .env.example .env
 #   macOS / Linux:

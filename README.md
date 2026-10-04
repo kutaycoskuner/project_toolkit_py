@@ -6,7 +6,7 @@
     A collection of Python-based toolkit projects for various tasks and utilities.
 </h3>
 
-<p align="right">
+<p align="center">
     <img alt="Python" src="https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white" />
     <img alt="Project Version" src="https://img.shields.io/badge/Version-0.20.2-blue" />
     <img alt="Project Start" src="https://img.shields.io/badge/project_start-17_Mar_2024-blue" />
@@ -47,7 +47,8 @@ source .venv/bin/activate
 #   tools not yet standardized have no requirements.txt: install the packages listed in their main.py header instead
 pip install -r requirements.txt
 
-# 6. Create your .env from the example, then fill in its values (e.g. paths on this machine)
+# 6. Create your .env from the example; it holds secrets only (API keys, tokens) and may stay empty.
+#    Paths and other settings go in the tool's config.yaml, offered on the first run.
 #   Windows:
 copy .env.example .env
 #   macOS / Linux:

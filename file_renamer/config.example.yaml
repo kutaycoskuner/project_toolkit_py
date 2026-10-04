@@ -1,0 +1,20 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it processes the bundled example: the folder name "Stone" is the prefix.
+#
+# config.yaml vs .env: everything that controls the tool goes here (folder, output, mode,
+# pattern, dry_run). Secrets (API keys, tokens, passwords) go in .env; this tool needs none.
+# Rule of thumb: would leaking it grant access or cost money? Then .env, not here.
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   folder: C:/Users/me/Assets/Stone -> exactly that folder (absolute; relative_to is ignored)
+#   folder: example/input/Stone      -> <this tool's folder>/example/input/Stone (relative_to: tool)
+#   folder: Stone                    -> <folder you run the command in>/Stone    (relative_to: cwd)
+relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
+folder: example/input/Stone   # work folder; your personal path goes in config.yaml
+output: example/output        # renamed copies go here, originals stay unchanged;
+                              # empty ("") = rename the files in the work folder itself
+mode: remove                  # "add" or "remove" the folder name prefix
+pattern: "*"                  # glob pattern of files to rename inside the folder
+dry_run: false                # true = preview only, change nothing
