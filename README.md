@@ -31,7 +31,8 @@
         - [markdown_timelog_parser/README.md](markdown_timelog_parser/README.md): [Folders](markdown_timelog_parser/README.md#folders) · [Usage](markdown_timelog_parser/README.md#usage) · [Settings](markdown_timelog_parser/README.md#settings) · [Setup](markdown_timelog_parser/README.md#setup-python-environment)
     - [Pixel Matcher](#pixel-matcher): compare frames, measure pixel differences, find an image in an image
         - [pixel_matcher/README.md](pixel_matcher/README.md): [Folders](pixel_matcher/README.md#folders) · [Usage](pixel_matcher/README.md#usage) · [Settings](pixel_matcher/README.md#settings) · [Setup](pixel_matcher/README.md#setup-python-environment)
-    - [Repetitive XML](#repetitive-xml): generate repetitive XML entries from YAML (not standardized yet)
+    - [Repetitive XML](#repetitive-xml): generate repetitive XML elements from a pattern
+        - [repetitive_xml/README.md](repetitive_xml/README.md): [Folders](repetitive_xml/README.md#folders) · [Usage](repetitive_xml/README.md#usage) · [Settings](repetitive_xml/README.md#settings) · [Setup](repetitive_xml/README.md#setup-python-environment)
     - [Text Hardcode](#text-hardcode): write numbered command lines (not standardized yet)
     - [Text Recognizer (PDF)](#text-recognizer-pdf): OCR text out of PDFs and images (not standardized yet)
     - [Text to Image (syntax highlighter)](#text-to-image-syntax-highlighter): styled images of code snippets (not standardized yet)
@@ -129,9 +130,9 @@ Compares images pixel by pixel in three modes: `scenes` checks rendered frames a
 - **Last update**: `2024-07-03`
 
 ### Repetitive XML
-Generates a complete `<cooldownentry>` block from a YAML config (one trigger per second of the configured duration, with minutes, seconds and singular/plural wording calculated) and inserts it into the `<cooldowns>` element of an input XML file.
+Generates XML elements from a pattern in `config.yaml` (any tags, attributes and nesting, with repeated children such as one `<trigger>` per second and `{time}` placeholders like `1m 5s`) and inserts them into a copy of an XML file.
 - **Use case**: Writing long, repetitive XML entries that would be error-prone by hand.
-- **Folder**: [repetitive_xml/](repetitive_xml/)
+- **Folder**: [repetitive_xml/](repetitive_xml/README.md)
 - **Last update**: `not committed yet`
 
 ### Text Hardcode

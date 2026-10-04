@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<cooldowns>
+	<cooldownentry name="skill" defaultcooldown="0" cooldownbartype="Regular" hue="88" hidewheninactive="True">
+		<trigger triggertype="SysMessage" duration="10" triggertext="Tame which animal?" />
+		<trigger triggertype="OverheadMessage" duration="10" triggertext="You fail to hide" />
+	</cooldownentry>
+</cooldowns>
