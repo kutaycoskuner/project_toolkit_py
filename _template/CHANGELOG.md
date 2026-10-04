@@ -4,6 +4,12 @@ Each tool copied from `_template/` records the template version it's on in its `
 
 Versions: **major** = the structure or settings contract changed, **minor** = something was added, **patch** = wording or a fix.
 
+## 3.1.1 — 2026-10-04
+- fix `merge_config_text()`: a top-level key followed by a nested block (a mapping or list on the next lines) now gets the user's old value written back as a YAML block. Before, only `key: value` lines were merged: nested settings silently reverted to the example's values on `m`, and the message wrongly listed them as dropped.
+- `merge_config_text()` keeps the example's line when the user's value equals it, so the merged file only differs where the user's values do (before, every value was re-quoted as JSON).
+- `update_config()` lists keys the example added inside a nested block the user kept ("New in the example, not added to your <key>: ...").
+- How to upgrade a 3.1.0 tool: copy `merge_config_text()` and `update_config()` from `_template/main.py`, then set both versions to 3.1.1.
+
 ## 3.1.0 — 2026-10-04
 - `update_config()`: when `config.example.yaml` is newer than `config.yaml` (e.g. after a `git pull` changed it), the run asks: `m` = new example with the user's values kept (`merge_config_text()`), `r` = fresh copy, `k` = keep (asked again after the next example change). The old file is saved as `config.yaml.bak` (root `.gitignore`: `**/config.yaml.bak`); without a terminal or in a dry run nothing is written.
 - How to upgrade a 3.0.0 tool: copy `merge_config_text()` and `update_config()` from `_template/main.py`, call `update_config()` in `ensure_config()` when `config.yaml` exists, add `json`, `os`, `re` imports, update the README's "After an update" notes, then set both versions to 3.1.0.

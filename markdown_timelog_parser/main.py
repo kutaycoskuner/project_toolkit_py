@@ -2,7 +2,7 @@
 #   author          : Kutay Coskuner
 #   ai-contributors : unknown (before 2026-10-04), Claude Opus 5.5 (claude-opus-5-5)
 #   last update     : 2026-10-04
-#   template        : 3.1.0
+#   template        : 3.1.1
 #   disclaimer      : Provided as is, without warranty of any kind; use at your own risk.
 #                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
@@ -134,8 +134,10 @@ def merge_config_text(example_text: str, old: dict) -> tuple[str, list[str]]:
     """
     Puts the values of an old config into the text of a new example.
 
-    Only top-level `key: value` lines are touched, so comments, order and new keys come
-    from the example. Values are written as JSON, which is valid YAML.
+    Only top-level keys are touched, so comments, order and new keys come from the
+    example. A `key: value` line gets the old value as JSON (valid YAML), unless it equals
+    the example's; a key followed by an indented block (a nested mapping or list) gets
+    the old value as a YAML block.
 
     Returns:
         (merged text, old keys the example no longer has).
@@ -143,15 +145,30 @@ def merge_config_text(example_text: str, old: dict) -> tuple[str, list[str]]:
     # key : spacing : value : optional comment : line ending
     line_re = re.compile(r"^([A-Za-z_][\w-]*):([ \t]*)([^#\r\n]*?)"
                          r"([ \t]*#[^\r\n]*)?(\r?\n)?$")
-    merged, used = [], set()
-    for line in example_text.splitlines(keepends=True):
+    lines = example_text.splitlines(keepends=True)
+    merged, used, i = [], set(), 0
+    while i < len(lines):
+        line, i = lines[i], i + 1
         match = line_re.match(line)
-        if match and match.group(1) in old and match.group(3).strip():
-            key, space, value, comment, newline = match.groups()
+        if not match or match.group(1) not in old:
+            merged.append(line)
+            continue
+        key, space, value, comment, newline = match.groups()
+        used.add(key)
+        if value.strip():
+            if yaml.safe_load(value) == old[key]:
+                merged.append(line)  # unchanged: keep the example's text and spacing
+                continue
             new_value = json.dumps(old[key], ensure_ascii=False).ljust(len(value))
-            line = f"{key}:{space}{new_value}{comment or ''}{newline or ''}"
-            used.add(key)
-        merged.append(line)
+            merged.append(f"{key}:{space}{new_value}{comment or ''}{newline or ''}")
+            continue
+        while i < len(lines) and lines[i].startswith((" ", "\t", "- ")):
+            i += 1  # skip the example's block; the old value replaces it
+        block = yaml.safe_dump({key: old[key]}, sort_keys=False, allow_unicode=True,
+                               default_flow_style=False).splitlines()
+        nl = newline or "\n"
+        merged.append(f"{block[0]}{comment or ''}{nl}")
+        merged.extend(f"{b}{nl}" for b in block[1:])
     return "".join(merged), [key for key in old if key not in used]
 
 
@@ -190,6 +207,12 @@ def update_config(config: Path, example: Path, dry_run: bool) -> None:
         print(f"Updated config.yaml, your values kept (old one: {backup.name}).")
         if dropped:
             print(f"No longer in the example, dropped: {', '.join(dropped)}.")
+        for key, value in (yaml.safe_load(example_text) or {}).items():
+            if isinstance(value, dict) and isinstance(old.get(key), dict):
+                added = [k for k in value if k not in old[key]]
+                if added:
+                    print(f"New in the example, not added to your {key}: "
+                          f"{', '.join(added)} (copy them from config.example.yaml).")
     elif answer == "r":
         shutil.copyfile(config, backup)
         shutil.copyfile(example, config)

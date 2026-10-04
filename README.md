@@ -25,7 +25,8 @@
         - [graph_visualizer/README.md](graph_visualizer/README.md): [Folders](graph_visualizer/README.md#folders) · [Usage](graph_visualizer/README.md#usage) · [Settings](graph_visualizer/README.md#settings) · [Setup](graph_visualizer/README.md#setup-python-environment)
     - [Image Resizer](#image-resizer): resize every image in a folder to one size
         - [image_resizer/README.md](image_resizer/README.md): [Folders](image_resizer/README.md#folders) · [Usage](image_resizer/README.md#usage) · [Settings](image_resizer/README.md#settings) · [Setup](image_resizer/README.md#setup-python-environment)
-    - [Markdown Tools](#markdown-tools): frontmatter changer (not standardized yet), PDF-text formatter, time-log parser
+    - [Markdown Tools](#markdown-tools): front matter migrator, PDF-text formatter, time-log parser
+        - [markdown_frontmatter_migrator/README.md](markdown_frontmatter_migrator/README.md): [Folders](markdown_frontmatter_migrator/README.md#folders) · [Usage](markdown_frontmatter_migrator/README.md#usage) · [Settings](markdown_frontmatter_migrator/README.md#settings) · [Setup](markdown_frontmatter_migrator/README.md#setup-python-environment)
         - [markdown_formatter/README.md](markdown_formatter/README.md): [Folders](markdown_formatter/README.md#folders) · [Usage](markdown_formatter/README.md#usage) · [Settings](markdown_formatter/README.md#settings) · [Setup](markdown_formatter/README.md#setup-python-environment)
         - [markdown_timelog_parser/README.md](markdown_timelog_parser/README.md): [Folders](markdown_timelog_parser/README.md#folders) · [Usage](markdown_timelog_parser/README.md#usage) · [Settings](markdown_timelog_parser/README.md#settings) · [Setup](markdown_timelog_parser/README.md#setup-python-environment)
     - [Pixel Matcher](#pixel-matcher): compare two images pixel by pixel (not standardized yet)
@@ -114,11 +115,11 @@ Resizes every image in a folder to one fixed size (default 1024×1024, set in `c
 
 ### Markdown Tools
 Tools to automate and format Markdown documents.
-- `markdown_metadata_template_changer`: converts a file's `---` frontmatter block from one template to another; the conversion rules have to be declared first. Last update: `2025-01-12`.
+- `markdown_frontmatter_migrator` (was `markdown_metadata_template_changer`): rewrites the `---` front matter of every Markdown file in a folder to a new template, carrying selected old values over; the template and mapping live in `config.yaml`; see [its README](markdown_frontmatter_migrator/README.md). Last update: `2025-01-12`.
 - `markdown_formatter`: cleans text extracted from PDFs into readable Markdown (paragraphs joined, headings spaced, quotes with citations split); see [its README](markdown_formatter/README.md). Last update: `2025-02-21`.
 - `markdown_timelog_parser`: turns hand-written Markdown time logs (`- 20250927 21.04-22.05`) into `sessions.csv` and `summary.csv` with totals per month and day; see [its README](markdown_timelog_parser/README.md). Last update: `2026-10-04`.
 - **Use case**: Formatting and batch-revising Markdown files.
-- **Folders**: [markdown_metadata_template_changer/](markdown_metadata_template_changer/), [markdown_formatter/](markdown_formatter/), [markdown_timelog_parser/](markdown_timelog_parser/)
+- **Folders**: [markdown_frontmatter_migrator/](markdown_frontmatter_migrator/), [markdown_formatter/](markdown_formatter/), [markdown_timelog_parser/](markdown_timelog_parser/)
 
 ### Pixel Matcher
 Compares two images by analyzing pixel color differences.

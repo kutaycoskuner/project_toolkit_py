@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-    <img alt="Template" src="https://img.shields.io/badge/template-3.1.0-blue" />
+    <img alt="Template" src="https://img.shields.io/badge/template-3.1.1-blue" />
     <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py?path=markdown_formatter" />
 </p>
 
