@@ -1,12 +1,31 @@
 # ----------------------------------------------------------------------------------------
-# Self
+#               Self
 # ----------------------------------------------------------------------------------------
 _hidden
-_output/*
-*/_output/*
+
+_documentation
+_documentation/
+
+**/input/
+**/_input/
+**/output/
+**/_output/
+# each tool's bundled example input is committed (its example/output/ stays ignored)
+!**/example/input/
+
+
+_test/
+
+
+.claude/
+.agents/
+
+# per-tool settings: config.example.yaml is committed, config.yaml (personal paths) stays local
+**/config.yaml
+**/config.yaml.bak
 
 # ----------------------------------------------------------------------------------------
-# Rest
+#               python base from github
 # ----------------------------------------------------------------------------------------
 
 

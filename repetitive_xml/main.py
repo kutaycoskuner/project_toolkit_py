@@ -7,15 +7,18 @@
 #                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
 """
-Timing-curve visualizer: plays a wait -> expand -> wait -> collapse value cycle in real
-time and plots it, to find a timing function for animations.
+Repetitive XML generator: builds XML elements from a pattern in config.yaml (any tags,
+attributes and nesting, with repeated children) and inserts them into an XML file.
 
-The cycle (one sample every `sample_interval` seconds):
-    waiting0  value 0 for `waiting_delay` s
-    expand    |tan(t)| rises until it passes `cap`
-    waiting1  value `cap` for `waiting_delay` s
-    collapse  |tan(t)| falls until it drops below `floor`, then back to waiting0
-With the defaults one full cycle takes about 5 s.
+The pattern (`elements` in config.yaml) is a list of elements, each with
+    tag         the element name, e.g. cooldownentry
+    attributes  name: value pairs; values may use {placeholders}
+    children    a list of elements, nested the same way
+    repeat      optional: {name: duration, from: 0, to: 120, step: 1} generates the
+                element once per value; {duration} then holds the value, and {time},
+                {minutes}, {seconds} read it as seconds ("1m 5s", 1, 5)
+Placeholders come from every repeat around an element, so repeats can be nested.
+true/false attributes are written as True/False.
 
 1. Bare run prints this guide and exits (no-args-usage-guide).
 2. The first real run offers to create config.yaml from config.example.yaml
@@ -23,46 +26,42 @@ With the defaults one full cycle takes about 5 s.
    since (update_config) and warn when its keys differ from the example's
    (check_config_keys).
 3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
-4. The cycle runs for `duration` seconds of wall-clock time, printing each sample as
-   "<value> <unix seconds>" (simulate).
-5. With `output` set, the samples are saved as samples.csv and the plot as graph.png
-   (save_results); a dry run saves nothing.
-6. With `plot` on, the plot opens in a window (show_plot).
+4. The elements are rendered to XML text, indented like the input file (build_block).
+5. They are inserted right before `insert_before` (e.g. </cooldowns>) in a copy of the
+   input, written to the output file (insert_block); a dry run only previews them.
 
-Requires: this folder's .venv (pip install -r requirements.txt); a display for the plot
-window (or --no-plot). config.yaml is gitignored. No .env: the tool needs no secrets.
+Requires: this folder's .venv (pip install -r requirements.txt). config.yaml is
+gitignored: your files and patterns go there. No .env: the tool needs no secrets.
 
-Inputs -> outputs: config -> console samples, optional example/output/graph.png and
-samples.csv, optional plot window. As shipped, config.example.yaml runs one ~6 s cycle
-and writes into example/output/.
+Inputs -> outputs: an XML file + the pattern -> a copy of the file with the generated
+elements inserted (overwritten on every run; the input is never changed). As shipped,
+config.example.yaml adds two cooldown entries to example/input/cooldowns.xml.
 
 Run:
-    python main.py --run                         one cycle, saved to example/output/
-    python main.py --run --no-plot               same, without opening a window
-    python main.py --run --duration 20 --dry-run 20 s, console only, nothing saved
-    python main.py --run --output D:/graphs      save graph.png and samples.csv there
+    python main.py --run                         generate into example/output/
+    python main.py --run --dry-run               preview the generated XML, write nothing
+    python main.py --input D:/razor/cooldowns.xml --output D:/razor/cooldowns_new.xml
     python main.py --help                        all flags; see README.md
 
 Gotchas:
-    - it runs in real time: the command blocks for `duration` seconds.
-    - the x axis is the Unix time of each sample, not seconds since start.
-    - a cap far above ~2000 needs a smaller sample_interval, or expand can skip past it
-      between samples and the curve looks flat.
+    - the elements are inserted before the first `insert_before` text in the file, so
+      use the parent's closing tag (</cooldowns>), which appears once.
+    - attribute values are XML-escaped (& < > "), so write them as plain text.
+    - a {placeholder} that no repeat defines stops the run with its name; write a
+      literal brace as {{ or }}.
 """
 
 # -----------------------------------------------------------------------------------------
 #                libraries
 # -----------------------------------------------------------------------------------------
 import argparse
-import csv
 import json
-import math
 import os
 import re
 import shutil
 import sys
-import time
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 import yaml
 
@@ -70,9 +69,15 @@ import yaml
 #                variables
 # -----------------------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-DEFAULTS = {"duration": 20, "waiting_delay": 1, "cap": 2000, "floor": 0.1,
-            "sample_interval": 0.1, "plot": True, "output": "", "relative_to": "tool",
-            "dry_run": False}
+DEFAULTS = {
+    "input": "example/input/cooldowns.xml",
+    "output": "example/output/cooldowns_generated.xml",
+    "insert_before": "</cooldowns>",
+    "indent": "auto",
+    "elements": [],
+    "relative_to": "tool",
+    "dry_run": False,
+}
 RELATIVE_TO = ("tool", "cwd")
 
 # -----------------------------------------------------------------------------------------
@@ -82,15 +87,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     """Defines the CLI; flags default to None so unset ones don't override config."""
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--run", action="store_true", help="run with config defaults")
-    parser.add_argument("--duration", type=float, help="seconds to run (default: 20)")
-    parser.add_argument("--plot", action=argparse.BooleanOptionalAction, default=None,
-                        help="open the plot window (--no-plot: console and files only)")
-    parser.add_argument("--output",
-                        help='folder for graph.png and samples.csv ("" = save nothing)')
+    parser.add_argument("--input", help="XML file to add the elements to")
+    parser.add_argument("--output", help="file to write the result to (overwritten)")
     parser.add_argument("--relative-to", choices=RELATIVE_TO,
                         help="base for relative paths: this tool's folder or the cwd")
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=None,
-                        help="run and print, but save nothing")
+                        help="preview the generated XML, write nothing")
     return parser.parse_args(argv)
 
 
@@ -246,11 +248,12 @@ def load_settings(args: argparse.Namespace) -> dict:
     """
     Merges settings: CLI flags > config.yaml > DEFAULTS.
 
-    Paths: an absolute "output" is used as-is; a relative one is resolved against this
-    tool's folder (relative_to: tool) or the current working directory (relative_to: cwd).
+    Paths: an absolute "input"/"output" is used as-is; a relative one is resolved
+    against this tool's folder (relative_to: tool) or the current working directory
+    (relative_to: cwd).
 
     Returns:
-        Settings; "output" is an absolute Path, or None when nothing is to be saved.
+        Settings with "input"/"output" as absolute Paths.
 
     Raises:
         SystemExit: relative_to is neither "tool" nor "cwd".
@@ -267,90 +270,108 @@ def load_settings(args: argparse.Namespace) -> dict:
         raise SystemExit(f"Invalid relative_to {settings['relative_to']!r} "
                          "in config.yaml: choose 'tool' or 'cwd'.")
     base = HERE if settings["relative_to"] == "tool" else Path.cwd()
-    output = Path(settings["output"]) if settings["output"] else None
-    settings["output"] = None if output is None else (
-        output if output.is_absolute() else base / output)
+    for key in ("input", "output"):
+        path = Path(settings[key])
+        settings[key] = path if path.is_absolute() else base / path
     return settings
 
 
-def simulate(settings: dict) -> tuple[list[float], list[float]]:
+def time_text(total_seconds: int) -> str:
+    """Seconds as a short duration: 65 -> "1m 5s", 60 -> "1m", 5 -> "5s", 0 -> "0s"."""
+    minutes, seconds = divmod(total_seconds, 60)
+    parts = [f"{minutes}m"] if minutes else []
+    if seconds or not minutes:
+        parts.append(f"{seconds}s")
+    return " ".join(parts)
+
+
+def fill(text, variables: dict) -> str:
     """
-    Runs the cycle in real time, printing "<value> <unix seconds>" per sample.
+    Fills {placeholders} in an attribute value; true/false become True/False.
+
+    Raises:
+        SystemExit: the text uses a placeholder that no surrounding repeat defines.
+    """
+    if isinstance(text, bool):
+        return str(text)
+    try:
+        return str(text).format(**variables)
+    except KeyError as missing:
+        known = ", ".join("{" + k + "}" for k in variables) or "none"
+        raise SystemExit(f"Unknown placeholder {{{missing.args[0]}}} in {text!r}; "
+                         f"defined here: {known}.")
+
+
+def expand(spec: dict, variables: dict) -> list[dict]:
+    """
+    The variable sets an element is rendered with: one per repeat value, or just the
+    surrounding ones when it doesn't repeat.
+    """
+    repeat = spec.get("repeat")
+    if not repeat:
+        return [variables]
+    name = repeat["name"]
+    values = range(int(repeat["from"]), int(repeat["to"]) + 1, int(repeat.get("step", 1)))
+    return [{**variables, name: value, "time": time_text(value),
+             "minutes": value // 60, "seconds": value % 60} for value in values]
+
+
+def render(spec: dict, variables: dict, level: int, indent: str,
+           counts: dict) -> list[str]:
+    """
+    One element (all its repeats) as XML lines at the given depth; counts every tag.
+
+    Raises:
+        SystemExit: an element has no `tag`.
+    """
+    if "tag" not in spec:
+        raise SystemExit(f"An element in `elements` has no `tag`: {spec}")
+    lines = []
+    for scope in expand(spec, variables):
+        tag, pad = spec["tag"], indent * level
+        attributes = "".join(f' {name}="{escape(fill(value, scope), {chr(34): "&quot;"})}"'
+                             for name, value in (spec.get("attributes") or {}).items())
+        counts[tag] = counts.get(tag, 0) + 1
+        children = spec.get("children") or []
+        if not children:
+            lines.append(f"{pad}<{tag}{attributes} />")
+            continue
+        lines.append(f"{pad}<{tag}{attributes}>")
+        for child in children:
+            lines += render(child, scope, level + 1, indent, counts)
+        lines.append(f"{pad}</{tag}>")
+    return lines
+
+
+def detect_indent(xml_content: str) -> str:
+    """The file's indentation unit: the whitespace before its first indented tag."""
+    match = re.search(r"\n([ \t]+)<", xml_content)
+    return match.group(1) if match else "    "
+
+
+def build_block(elements: list[dict], indent: str) -> tuple[str, dict]:
+    """
+    Renders every top-level element one level deep (inside the parent element).
 
     Returns:
-        (sample times as Unix seconds, sample values).
+        (the XML text, {tag: number of elements generated}).
     """
-    cap, floor, delay = settings["cap"], settings["floor"], settings["waiting_delay"]
-    graph_x, graph_y = [], []
-    difference = -1
-    time_pin = time.time()
-    time_print_delay = time_pin
-    end_time = time.time() + settings["duration"]
-    mod = "waiting0"
-
-    while time.time() < end_time:
-        value = 0.0
-        if mod == "waiting0":
-            if time.time() > time_pin + delay:
-                difference = time.time() - time_pin
-                mod = "expand"
-        elif mod == "expand":
-            value = abs(math.tan(time.time() - difference))
-            if value > cap:
-                value = cap
-                time_pin = time.time()
-                mod = "waiting1"
-        elif mod == "waiting1":
-            value = cap
-            if time.time() > time_pin + delay:
-                difference = time.time() - time_pin
-                mod = "collapse"
-        elif mod == "collapse":
-            value = abs(math.tan(time.time() - difference))
-            if value < floor:
-                value = 0.0
-                time_pin = time.time()
-                mod = "waiting0"
-
-        if time.time() > time_print_delay + settings["sample_interval"]:
-            time_print_delay = time.time()
-            print(f"{value:.4f}", int(time.time()))
-            graph_x.append(time.time())
-            graph_y.append(value)
-
-    return graph_x, graph_y
+    counts, lines = {}, []
+    for spec in elements:
+        lines += render(spec, {}, 1, indent, counts)
+    return "\n".join(lines), counts
 
 
-def draw(plt, x: list[float], y: list[float]) -> None:
-    """Draws value over time onto the current matplotlib figure."""
-    plt.plot(x, y, label="time - value")
-    plt.xlabel("X-axis")
-    plt.ylabel("Y-axis")
+def insert_block(xml_content: str, block: str, insert_before: str) -> str:
+    """
+    Inserts block on its own lines right before the first `insert_before` text.
 
-
-def save_results(x: list[float], y: list[float], output: Path) -> None:
-    """Writes samples.csv (unix_time, value) and graph.png into output, overwriting."""
-    import matplotlib
-    matplotlib.use("Agg")  # file only: no window, works without a display
-    import matplotlib.pyplot as plt
-
-    output.mkdir(parents=True, exist_ok=True)
-    with open(output / "samples.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["unix_time", "value"])
-        writer.writerows((f"{t:.4f}", f"{v:.6f}") for t, v in zip(x, y))
-    draw(plt, x, y)
-    plt.savefig(output / "graph.png", dpi=120)
-    plt.close()
-    print(f"Saved {output / 'samples.csv'} and {output / 'graph.png'}")
-
-
-def show_plot(x: list[float], y: list[float]) -> None:
-    """Shows value over time in a blocking matplotlib window."""
-    import matplotlib.pyplot as plt  # imported here so --no-plot runs without a display
-
-    draw(plt, x, y)
-    plt.show()
+    Raises:
+        SystemExit: insert_before doesn't occur in the file.
+    """
+    if insert_before not in xml_content:
+        raise SystemExit(f"Could not find {insert_before!r} in the input file.")
+    return xml_content.replace(insert_before, f"{block}\n{insert_before}", 1)
 
 # -----------------------------------------------------------------------------------------
 #                main
@@ -362,17 +383,33 @@ def main(argv: list[str]) -> int:
         return 0
     # 2.-3. Settings (config.yaml offered on the first real run)
     settings = load_settings(parse_args(argv))
-    # 4. Simulate
-    x, y = simulate(settings)
-    # 5. Save
-    if settings["output"] is not None:
-        if settings["dry_run"]:
-            print(f"Dry run: nothing saved to {settings['output']}")
-        else:
-            save_results(x, y, settings["output"])
-    # 6. Plot window
-    if settings["plot"]:
-        show_plot(x, y)
+    if not settings["input"].is_file():
+        print(f"Input file not found: {settings['input']}")
+        return 1
+    if not settings["elements"]:
+        print("Nothing to generate: `elements` in config.yaml is empty.")
+        return 1
+    # 4. Render
+    with open(settings["input"], "r", encoding="utf-8") as file:
+        xml_content = file.read()
+    indent = settings["indent"]
+    if indent == "auto":
+        indent = detect_indent(xml_content)
+    block, counts = build_block(settings["elements"], indent)
+    print(f"Input : {settings['input']}")
+    print("Generated: " + ", ".join(f"{n} <{tag}>" for tag, n in counts.items()))
+    # 5. Insert and write
+    updated_xml = insert_block(xml_content, block, settings["insert_before"])
+    if settings["dry_run"]:
+        preview = block.splitlines()
+        print("\n".join(preview[:8] + (["    ..."] if len(preview) > 8 else [])))
+        print("Dry run: nothing written.")
+        return 0
+    settings["output"].parent.mkdir(parents=True, exist_ok=True)
+    with open(settings["output"], "w", encoding="utf-8") as file:
+        file.write(updated_xml)
+    print(f"Output: {settings['output']}")
+    print("Done.")
     return 0
 
 

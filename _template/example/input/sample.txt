@@ -1,0 +1,2 @@
+This is a sample input file.
+The demo run() writes an upper-cased copy of it to example/output/.

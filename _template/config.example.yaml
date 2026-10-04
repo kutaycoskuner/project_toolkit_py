@@ -1,0 +1,17 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. Personal paths go only in config.yaml.
+# As shipped it processes the bundled example data. CLI flags override these values.
+#
+# config.yaml vs .env: everything that controls the tool goes here (paths, modes,
+# patterns, sizes, thresholds, dry_run). Secrets (API keys, tokens, passwords) go in .env.
+# Rule of thumb: would leaking it grant access or cost money? Then .env, not here.
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   input: C:/Users/me/photos   -> exactly that folder (absolute; relative_to is ignored)
+#   input: example/input        -> <this tool's folder>/example/input   (relative_to: tool)
+#   input: photos               -> <folder you run the command in>/photos (relative_to: cwd)
+relative_to: tool         # base for relative paths: "tool" (default) or "cwd"
+input: example/input      # folder to read from
+output: example/output    # folder to write to
+dry_run: false            # true = show what would happen, write nothing

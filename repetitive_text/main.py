@@ -1,21 +1,14 @@
 # -----------------------------------------------------------------------------------------
 #   author          : Kutay Coskuner
-#   ai-contributors : unknown (before 2026-10-04), Claude Opus 5.5 (claude-opus-5-5)
-#   last update     : 2026-10-04
+#   ai-contributors : unknown (before 2026-10-05), Claude Opus 5.5 (claude-opus-5-5)
+#   last update     : 2026-10-05
 #   template        : 3.1.1
 #   disclaimer      : Provided as is, without warranty of any kind; use at your own risk.
 #                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
 """
-Timing-curve visualizer: plays a wait -> expand -> wait -> collapse value cycle in real
-time and plots it, to find a timing function for animations.
-
-The cycle (one sample every `sample_interval` seconds):
-    waiting0  value 0 for `waiting_delay` s
-    expand    |tan(t)| rises until it passes `cap`
-    waiting1  value `cap` for `waiting_delay` s
-    collapse  |tan(t)| falls until it drops below `floor`, then back to waiting0
-With the defaults one full cycle takes about 5 s.
+Numbered line generator: writes one line per number from `start` to `end` into a text
+file, from a line template such as "pushlist spellbook_scrolls {i}".
 
 1. Bare run prints this guide and exits (no-args-usage-guide).
 2. The first real run offers to create config.yaml from config.example.yaml
@@ -23,45 +16,39 @@ With the defaults one full cycle takes about 5 s.
    since (update_config) and warn when its keys differ from the example's
    (check_config_keys).
 3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
-4. The cycle runs for `duration` seconds of wall-clock time, printing each sample as
-   "<value> <unix seconds>" (simulate).
-5. With `output` set, the samples are saved as samples.csv and the plot as graph.png
-   (save_results); a dry run saves nothing.
-6. With `plot` on, the plot opens in a window (show_plot).
+4. The line template is filled in for every number from start to end, both included,
+   counting by step (build_lines).
+5. The lines are written to <output>/<output_file> (write_lines); a dry run only shows
+   the first and last line.
 
-Requires: this folder's .venv (pip install -r requirements.txt); a display for the plot
-window (or --no-plot). config.yaml is gitignored. No .env: the tool needs no secrets.
+Requires: this folder's .venv (pip install -r requirements.txt). config.yaml is
+gitignored: your settings go there. No .env: the tool needs no secrets.
 
-Inputs -> outputs: config -> console samples, optional example/output/graph.png and
-samples.csv, optional plot window. As shipped, config.example.yaml runs one ~6 s cycle
-and writes into example/output/.
+Inputs -> outputs: config / flags -> example/output/output.txt by default (overwritten
+on every run). The tool reads no input files: config.example.yaml is its example.
 
 Run:
-    python main.py --run                         one cycle, saved to example/output/
-    python main.py --run --no-plot               same, without opening a window
-    python main.py --run --duration 20 --dry-run 20 s, console only, nothing saved
-    python main.py --run --output D:/graphs      save graph.png and samples.csv there
+    python main.py --run                         lines 7981..8044 into example/output/
+    python main.py --run --dry-run               show first and last line, write nothing
+    python main.py --start 1 --end 10 --line "pushlist spellbook_scrolls {i}"
+    python main.py --start 0 --end 100 --step 10 --line "wait {i}"
     python main.py --help                        all flags; see README.md
 
 Gotchas:
-    - it runs in real time: the command blocks for `duration` seconds.
-    - the x axis is the Unix time of each sample, not seconds since start.
-    - a cap far above ~2000 needs a smaller sample_interval, or expand can skip past it
-      between samples and the curve looks flat.
+    - "{i}" in the line template is the number; other braces must be doubled ("{{" or
+      "}}"), because the template is a Python format string.
+    - the file has no trailing newline after the last line.
 """
 
 # -----------------------------------------------------------------------------------------
 #                libraries
 # -----------------------------------------------------------------------------------------
 import argparse
-import csv
 import json
-import math
 import os
 import re
 import shutil
 import sys
-import time
 from pathlib import Path
 
 import yaml
@@ -70,9 +57,16 @@ import yaml
 #                variables
 # -----------------------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-DEFAULTS = {"duration": 20, "waiting_delay": 1, "cap": 2000, "floor": 0.1,
-            "sample_interval": 0.1, "plot": True, "output": "", "relative_to": "tool",
-            "dry_run": False}
+DEFAULTS = {
+    "start": 7981,
+    "end": 8044,
+    "step": 1,
+    "line": "pushlist spellbook_scrolls {i}",
+    "output": "example/output",
+    "output_file": "output.txt",
+    "relative_to": "tool",
+    "dry_run": False,
+}
 RELATIVE_TO = ("tool", "cwd")
 
 # -----------------------------------------------------------------------------------------
@@ -82,15 +76,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     """Defines the CLI; flags default to None so unset ones don't override config."""
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--run", action="store_true", help="run with config defaults")
-    parser.add_argument("--duration", type=float, help="seconds to run (default: 20)")
-    parser.add_argument("--plot", action=argparse.BooleanOptionalAction, default=None,
-                        help="open the plot window (--no-plot: console and files only)")
-    parser.add_argument("--output",
-                        help='folder for graph.png and samples.csv ("" = save nothing)')
+    parser.add_argument("--start", type=int, help="first number (included)")
+    parser.add_argument("--end", type=int, help="last number (included)")
+    parser.add_argument("--step", type=int, help="count by this much (default: 1)")
+    parser.add_argument("--line", help='line template, "{i}" is the number')
+    parser.add_argument("--output", help="output folder (default: example/output/)")
     parser.add_argument("--relative-to", choices=RELATIVE_TO,
                         help="base for relative paths: this tool's folder or the cwd")
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=None,
-                        help="run and print, but save nothing")
+                        help="show the first and last line, write nothing")
     return parser.parse_args(argv)
 
 
@@ -250,7 +244,7 @@ def load_settings(args: argparse.Namespace) -> dict:
     tool's folder (relative_to: tool) or the current working directory (relative_to: cwd).
 
     Returns:
-        Settings; "output" is an absolute Path, or None when nothing is to be saved.
+        Settings with "output" as an absolute Path.
 
     Raises:
         SystemExit: relative_to is neither "tool" nor "cwd".
@@ -267,90 +261,31 @@ def load_settings(args: argparse.Namespace) -> dict:
         raise SystemExit(f"Invalid relative_to {settings['relative_to']!r} "
                          "in config.yaml: choose 'tool' or 'cwd'.")
     base = HERE if settings["relative_to"] == "tool" else Path.cwd()
-    output = Path(settings["output"]) if settings["output"] else None
-    settings["output"] = None if output is None else (
-        output if output.is_absolute() else base / output)
+    path = Path(settings["output"])
+    settings["output"] = path if path.is_absolute() else base / path
     return settings
 
 
-def simulate(settings: dict) -> tuple[list[float], list[float]]:
+def build_lines(start: int, end: int, step: int, line: str) -> list[str]:
     """
-    Runs the cycle in real time, printing "<value> <unix seconds>" per sample.
+    One filled-in line per number from start to end, both included, counting by step.
 
-    Returns:
-        (sample times as Unix seconds, sample values).
+    Raises:
+        SystemExit: the template uses a placeholder other than {i}.
     """
-    cap, floor, delay = settings["cap"], settings["floor"], settings["waiting_delay"]
-    graph_x, graph_y = [], []
-    difference = -1
-    time_pin = time.time()
-    time_print_delay = time_pin
-    end_time = time.time() + settings["duration"]
-    mod = "waiting0"
-
-    while time.time() < end_time:
-        value = 0.0
-        if mod == "waiting0":
-            if time.time() > time_pin + delay:
-                difference = time.time() - time_pin
-                mod = "expand"
-        elif mod == "expand":
-            value = abs(math.tan(time.time() - difference))
-            if value > cap:
-                value = cap
-                time_pin = time.time()
-                mod = "waiting1"
-        elif mod == "waiting1":
-            value = cap
-            if time.time() > time_pin + delay:
-                difference = time.time() - time_pin
-                mod = "collapse"
-        elif mod == "collapse":
-            value = abs(math.tan(time.time() - difference))
-            if value < floor:
-                value = 0.0
-                time_pin = time.time()
-                mod = "waiting0"
-
-        if time.time() > time_print_delay + settings["sample_interval"]:
-            time_print_delay = time.time()
-            print(f"{value:.4f}", int(time.time()))
-            graph_x.append(time.time())
-            graph_y.append(value)
-
-    return graph_x, graph_y
+    try:
+        return [line.format(i=i) for i in range(start, end + 1, step)]
+    except (KeyError, IndexError) as error:
+        raise SystemExit(f"Line template {line!r} uses {error}; only {{i}} is defined "
+                         "(write a literal brace as {{ or }}).")
 
 
-def draw(plt, x: list[float], y: list[float]) -> None:
-    """Draws value over time onto the current matplotlib figure."""
-    plt.plot(x, y, label="time - value")
-    plt.xlabel("X-axis")
-    plt.ylabel("Y-axis")
-
-
-def save_results(x: list[float], y: list[float], output: Path) -> None:
-    """Writes samples.csv (unix_time, value) and graph.png into output, overwriting."""
-    import matplotlib
-    matplotlib.use("Agg")  # file only: no window, works without a display
-    import matplotlib.pyplot as plt
-
-    output.mkdir(parents=True, exist_ok=True)
-    with open(output / "samples.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["unix_time", "value"])
-        writer.writerows((f"{t:.4f}", f"{v:.6f}") for t, v in zip(x, y))
-    draw(plt, x, y)
-    plt.savefig(output / "graph.png", dpi=120)
-    plt.close()
-    print(f"Saved {output / 'samples.csv'} and {output / 'graph.png'}")
-
-
-def show_plot(x: list[float], y: list[float]) -> None:
-    """Shows value over time in a blocking matplotlib window."""
-    import matplotlib.pyplot as plt  # imported here so --no-plot runs without a display
-
-    draw(plt, x, y)
-    plt.show()
+def write_lines(lines: list[str], output_path: Path) -> None:
+    """Writes the lines joined by newlines (no trailing newline), creating the folder."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    print(f"Saved to {output_path}")
 
 # -----------------------------------------------------------------------------------------
 #                main
@@ -362,17 +297,20 @@ def main(argv: list[str]) -> int:
         return 0
     # 2.-3. Settings (config.yaml offered on the first real run)
     settings = load_settings(parse_args(argv))
-    # 4. Simulate
-    x, y = simulate(settings)
-    # 5. Save
-    if settings["output"] is not None:
-        if settings["dry_run"]:
-            print(f"Dry run: nothing saved to {settings['output']}")
-        else:
-            save_results(x, y, settings["output"])
-    # 6. Plot window
-    if settings["plot"]:
-        show_plot(x, y)
+    if settings["step"] < 1:
+        print("step must be 1 or more.")
+        return 1
+    # 4. Lines
+    lines = build_lines(settings["start"], settings["end"], settings["step"],
+                        settings["line"])
+    output_path = settings["output"] / settings["output_file"]
+    print(f"{len(lines)} lines" + (f", first: {lines[0]!r}, last: {lines[-1]!r}"
+                                   if lines else " (end is before start)"))
+    # 5. Write
+    if settings["dry_run"]:
+        print(f"Dry run: would write {output_path}")
+        return 0
+    write_lines(lines, output_path)
     return 0
 
 

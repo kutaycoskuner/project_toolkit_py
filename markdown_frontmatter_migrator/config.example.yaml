@@ -1,0 +1,52 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it migrates the bundled example/input/ posts into example/output/.
+#
+# Everything that controls the tool goes here, including your folders and your front
+# matter template. It needs no secrets, so it has no .env.
+
+pattern: "*.md"               # files to migrate; subfolders are searched too
+dry_run: false                # true = list what would be written, write nothing
+
+# The new front matter: every field, in this order, with its default value.
+template_fields:
+  template: "1.6"
+  revision: "1.3"
+  title: ""
+  description: ""
+  category: [repository]
+  tags: []
+  created: "2023-03-01"
+  updated: "2023-03-01"
+  author: lichzelg
+  translator: null
+  editor: null
+  image: first-blog-post.jpg
+  image_credit: null
+  language: en
+  visibility: true
+  sort_order: 1
+
+# Carried over from the old front matter when the old file has the field
+# (new field: old field). Every other field gets its default from template_fields.
+keep_from_old:
+  revision: version
+  title: title
+  description: description
+  tags: tags
+  created: date
+  language: language
+  visibility: isVisible
+
+list_fields: [tags]           # turned into lists: "a; b" -> [a, b], items trimmed
+list_separator: ";"           # what splits a list written as one string
+today_fields: [updated]       # set to today's date on every run
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   input: C:/Users/me/blog     -> exactly that folder (absolute; relative_to is ignored)
+#   input: example/input        -> <this tool's folder>/example/input   (relative_to: tool)
+#   input: posts                -> <folder you run the command in>/posts (relative_to: cwd)
+relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
+input: example/input          # folder with the Markdown files
+output: example/output        # folder for the migrated copies (same relative paths)

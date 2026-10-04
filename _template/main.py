@@ -1,21 +1,16 @@
 # -----------------------------------------------------------------------------------------
 #   author          : Kutay Coskuner
-#   ai-contributors : unknown (before 2026-10-04), Claude Opus 5.5 (claude-opus-5-5)
+#   ai-contributors : Claude Opus 5.5 (claude-opus-5-5)
 #   last update     : 2026-10-04
 #   template        : 3.1.1
 #   disclaimer      : Provided as is, without warranty of any kind; use at your own risk.
 #                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
 """
-Timing-curve visualizer: plays a wait -> expand -> wait -> collapse value cycle in real
-time and plots it, to find a timing function for animations.
+<One line: what this tool is.>
 
-The cycle (one sample every `sample_interval` seconds):
-    waiting0  value 0 for `waiting_delay` s
-    expand    |tan(t)| rises until it passes `cap`
-    waiting1  value `cap` for `waiting_delay` s
-    collapse  |tan(t)| falls until it drops below `floor`, then back to waiting0
-With the defaults one full cycle takes about 5 s.
+<What it does: 1-5 lines.> As shipped, run() is a demo: it writes an upper-cased copy of
+every .txt file in the input folder to the output folder.
 
 1. Bare run prints this guide and exits (no-args-usage-guide).
 2. The first real run offers to create config.yaml from config.example.yaml
@@ -23,55 +18,42 @@ With the defaults one full cycle takes about 5 s.
    since (update_config) and warn when its keys differ from the example's
    (check_config_keys).
 3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
-4. The cycle runs for `duration` seconds of wall-clock time, printing each sample as
-   "<value> <unix seconds>" (simulate).
-5. With `output` set, the samples are saved as samples.csv and the plot as graph.png
-   (save_results); a dry run saves nothing.
-6. With `plot` on, the plot opens in a window (show_plot).
+4. The input folder is processed into the output folder (run).
 
-Requires: this folder's .venv (pip install -r requirements.txt); a display for the plot
-window (or --no-plot). config.yaml is gitignored. No .env: the tool needs no secrets.
+Requires: this folder's .venv (pip install -r requirements.txt); .env copied from
+.env.example, for secrets only (may stay empty). config.yaml and .env are gitignored:
+personal paths go in config.yaml, never into the committed config.example.yaml.
 
-Inputs -> outputs: config -> console samples, optional example/output/graph.png and
-samples.csv, optional plot window. As shipped, config.example.yaml runs one ~6 s cycle
-and writes into example/output/.
+Inputs -> outputs: example/input/ -> example/output/ until config.yaml points elsewhere.
+Paths may be absolute (used as-is) or relative: resolved against this tool's folder
+(relative_to: tool, default) or the current working directory (relative_to: cwd).
 
 Run:
-    python main.py --run                         one cycle, saved to example/output/
-    python main.py --run --no-plot               same, without opening a window
-    python main.py --run --duration 20 --dry-run 20 s, console only, nothing saved
-    python main.py --run --output D:/graphs      save graph.png and samples.csv there
-    python main.py --help                        all flags; see README.md
-
-Gotchas:
-    - it runs in real time: the command blocks for `duration` seconds.
-    - the x axis is the Unix time of each sample, not seconds since start.
-    - a cap far above ~2000 needs a smaller sample_interval, or expand can skip past it
-      between samples and the curve looks flat.
+    python main.py --run                     process example/input/ into example/output/
+    python main.py --run --dry-run           show what would happen, write nothing
+    python main.py --input <dir> --output <dir>
+    python main.py --help                    all flags; see README.md
 """
 
 # -----------------------------------------------------------------------------------------
 #                libraries
 # -----------------------------------------------------------------------------------------
 import argparse
-import csv
 import json
-import math
 import os
 import re
 import shutil
 import sys
-import time
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
 
 # -----------------------------------------------------------------------------------------
 #                variables
 # -----------------------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-DEFAULTS = {"duration": 20, "waiting_delay": 1, "cap": 2000, "floor": 0.1,
-            "sample_interval": 0.1, "plot": True, "output": "", "relative_to": "tool",
+DEFAULTS = {"input": "example/input", "output": "example/output", "relative_to": "tool",
             "dry_run": False}
 RELATIVE_TO = ("tool", "cwd")
 
@@ -82,15 +64,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     """Defines the CLI; flags default to None so unset ones don't override config."""
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--run", action="store_true", help="run with config defaults")
-    parser.add_argument("--duration", type=float, help="seconds to run (default: 20)")
-    parser.add_argument("--plot", action=argparse.BooleanOptionalAction, default=None,
-                        help="open the plot window (--no-plot: console and files only)")
-    parser.add_argument("--output",
-                        help='folder for graph.png and samples.csv ("" = save nothing)')
+    parser.add_argument("--input", help="input folder (default: example/input/)")
+    parser.add_argument("--output", help="output folder (default: example/output/)")
     parser.add_argument("--relative-to", choices=RELATIVE_TO,
                         help="base for relative paths: this tool's folder or the cwd")
-    parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=None,
-                        help="run and print, but save nothing")
+    parser.add_argument("--dry-run", action="store_true", default=None,
+                        help="show what would happen, write nothing")
     return parser.parse_args(argv)
 
 
@@ -246,11 +225,12 @@ def load_settings(args: argparse.Namespace) -> dict:
     """
     Merges settings: CLI flags > config.yaml > DEFAULTS.
 
-    Paths: an absolute "output" is used as-is; a relative one is resolved against this
-    tool's folder (relative_to: tool) or the current working directory (relative_to: cwd).
+    Paths: an absolute "input"/"output" is used as-is; a relative one is resolved
+    against this tool's folder (relative_to: tool) or the current working directory
+    (relative_to: cwd).
 
     Returns:
-        Settings; "output" is an absolute Path, or None when nothing is to be saved.
+        Settings with "input"/"output" as absolute Paths.
 
     Raises:
         SystemExit: relative_to is neither "tool" nor "cwd".
@@ -262,117 +242,58 @@ def load_settings(args: argparse.Namespace) -> dict:
         if config_file.name == "config.yaml":
             check_config_keys(loaded)
         settings.update(loaded)
+    load_dotenv(HERE / ".env")  # secrets only (os.getenv where needed); never settings
     settings.update({k: v for k, v in vars(args).items() if v is not None and k != "run"})
     if settings["relative_to"] not in RELATIVE_TO:
         raise SystemExit(f"Invalid relative_to {settings['relative_to']!r} "
                          "in config.yaml: choose 'tool' or 'cwd'.")
     base = HERE if settings["relative_to"] == "tool" else Path.cwd()
-    output = Path(settings["output"]) if settings["output"] else None
-    settings["output"] = None if output is None else (
-        output if output.is_absolute() else base / output)
+    for key in ("input", "output"):
+        path = Path(settings[key])
+        settings[key] = path if path.is_absolute() else base / path
     return settings
 
 
-def simulate(settings: dict) -> tuple[list[float], list[float]]:
+def run(settings: dict) -> None:
     """
-    Runs the cycle in real time, printing "<value> <unix seconds>" per sample.
+    Demo work, replace with the tool's own: upper-cases every .txt file into output.
 
-    Returns:
-        (sample times as Unix seconds, sample values).
+    Writes nothing when settings["dry_run"] is set.
     """
-    cap, floor, delay = settings["cap"], settings["floor"], settings["waiting_delay"]
-    graph_x, graph_y = [], []
-    difference = -1
-    time_pin = time.time()
-    time_print_delay = time_pin
-    end_time = time.time() + settings["duration"]
-    mod = "waiting0"
-
-    while time.time() < end_time:
-        value = 0.0
-        if mod == "waiting0":
-            if time.time() > time_pin + delay:
-                difference = time.time() - time_pin
-                mod = "expand"
-        elif mod == "expand":
-            value = abs(math.tan(time.time() - difference))
-            if value > cap:
-                value = cap
-                time_pin = time.time()
-                mod = "waiting1"
-        elif mod == "waiting1":
-            value = cap
-            if time.time() > time_pin + delay:
-                difference = time.time() - time_pin
-                mod = "collapse"
-        elif mod == "collapse":
-            value = abs(math.tan(time.time() - difference))
-            if value < floor:
-                value = 0.0
-                time_pin = time.time()
-                mod = "waiting0"
-
-        if time.time() > time_print_delay + settings["sample_interval"]:
-            time_print_delay = time.time()
-            print(f"{value:.4f}", int(time.time()))
-            graph_x.append(time.time())
-            graph_y.append(value)
-
-    return graph_x, graph_y
-
-
-def draw(plt, x: list[float], y: list[float]) -> None:
-    """Draws value over time onto the current matplotlib figure."""
-    plt.plot(x, y, label="time - value")
-    plt.xlabel("X-axis")
-    plt.ylabel("Y-axis")
-
-
-def save_results(x: list[float], y: list[float], output: Path) -> None:
-    """Writes samples.csv (unix_time, value) and graph.png into output, overwriting."""
-    import matplotlib
-    matplotlib.use("Agg")  # file only: no window, works without a display
-    import matplotlib.pyplot as plt
-
-    output.mkdir(parents=True, exist_ok=True)
-    with open(output / "samples.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["unix_time", "value"])
-        writer.writerows((f"{t:.4f}", f"{v:.6f}") for t, v in zip(x, y))
-    draw(plt, x, y)
-    plt.savefig(output / "graph.png", dpi=120)
-    plt.close()
-    print(f"Saved {output / 'samples.csv'} and {output / 'graph.png'}")
-
-
-def show_plot(x: list[float], y: list[float]) -> None:
-    """Shows value over time in a blocking matplotlib window."""
-    import matplotlib.pyplot as plt  # imported here so --no-plot runs without a display
-
-    draw(plt, x, y)
-    plt.show()
+    dry_run = settings["dry_run"]
+    print(f"input : {settings['input']}")
+    print(f"output: {settings['output']}")
+    files = sorted(settings["input"].glob("*.txt"))
+    if not files:
+        print("No .txt files in the input folder.")
+        return
+    if not dry_run:
+        settings["output"].mkdir(parents=True, exist_ok=True)
+    for src in files:
+        dst = settings["output"] / src.name
+        if dry_run:
+            print(f"would write: {dst.name}")
+            continue
+        dst.write_text(src.read_text(encoding="utf-8").upper(), encoding="utf-8")
+        print(f"processed: {src.name} -> {dst}")
+    if dry_run:
+        print("dry run: nothing written")
 
 # -----------------------------------------------------------------------------------------
 #                main
 # -----------------------------------------------------------------------------------------
 def main(argv: list[str]) -> int:
-    # 1. No arguments: usage guide only, never work
+    # 1. No arguments: usage guide only, never work (no-args-usage-guide)
     if not argv:
         print(__doc__.strip())
         return 0
-    # 2.-3. Settings (config.yaml offered on the first real run)
+    # 2.-3. Settings from CLI, config.yaml (offered on the first real run), defaults
     settings = load_settings(parse_args(argv))
-    # 4. Simulate
-    x, y = simulate(settings)
-    # 5. Save
-    if settings["output"] is not None:
-        if settings["dry_run"]:
-            print(f"Dry run: nothing saved to {settings['output']}")
-        else:
-            save_results(x, y, settings["output"])
-    # 6. Plot window
-    if settings["plot"]:
-        show_plot(x, y)
+    if not settings["input"].is_dir():
+        print(f"Input folder not found: {settings['input']}")
+        return 1
+    # 4. Work
+    run(settings)
     return 0
 
 

@@ -7,15 +7,16 @@
 #                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
 """
-Timing-curve visualizer: plays a wait -> expand -> wait -> collapse value cycle in real
-time and plots it, to find a timing function for animations.
+Markdown front matter migrator: rewrites the --- front matter of every Markdown file in a
+folder (subfolders included) to a new template, carrying selected old values over.
 
-The cycle (one sample every `sample_interval` seconds):
-    waiting0  value 0 for `waiting_delay` s
-    expand    |tan(t)| rises until it passes `cap`
-    waiting1  value `cap` for `waiting_delay` s
-    collapse  |tan(t)| falls until it drops below `floor`, then back to waiting0
-With the defaults one full cycle takes about 5 s.
+How a file's new front matter is built (merge_metadata):
+    - every field of `template_fields`, in that order, starting from its default
+    - fields listed in `keep_from_old` (new key: old key) take the old file's value when
+      it has that key, e.g. created <- date, visibility <- isVisible
+    - `list_fields` (tags) become lists: "a; b" is split on `list_separator`, items trimmed
+    - `today_fields` (updated) are set to today's date
+    - old keys not mentioned anywhere are dropped; the body after the front matter is kept
 
 1. Bare run prints this guide and exits (no-args-usage-guide).
 2. The first real run offers to create config.yaml from config.example.yaml
@@ -23,45 +24,39 @@ With the defaults one full cycle takes about 5 s.
    since (update_config) and warn when its keys differ from the example's
    (check_config_keys).
 3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
-4. The cycle runs for `duration` seconds of wall-clock time, printing each sample as
-   "<value> <unix seconds>" (simulate).
-5. With `output` set, the samples are saved as samples.csv and the plot as graph.png
-   (save_results); a dry run saves nothing.
-6. With `plot` on, the plot opens in a window (show_plot).
+4. Every file matching the pattern under the input folder is migrated and written to the
+   same relative path under the output folder (migrate_file); a dry run writes nothing.
 
-Requires: this folder's .venv (pip install -r requirements.txt); a display for the plot
-window (or --no-plot). config.yaml is gitignored. No .env: the tool needs no secrets.
+Requires: this folder's .venv (pip install -r requirements.txt). config.yaml is
+gitignored: your folders and your front matter template go there. No .env: the tool
+needs no secrets.
 
-Inputs -> outputs: config -> console samples, optional example/output/graph.png and
-samples.csv, optional plot window. As shipped, config.example.yaml runs one ~6 s cycle
-and writes into example/output/.
+Inputs -> outputs: *.md files under the input folder -> migrated copies under the output
+folder (existing files overwritten, inputs never changed). As shipped,
+config.example.yaml migrates example/input/ into example/output/.
 
 Run:
-    python main.py --run                         one cycle, saved to example/output/
-    python main.py --run --no-plot               same, without opening a window
-    python main.py --run --duration 20 --dry-run 20 s, console only, nothing saved
-    python main.py --run --output D:/graphs      save graph.png and samples.csv there
+    python main.py --run                         migrate the example into example/output/
+    python main.py --run --dry-run               list what would be written, write nothing
+    python main.py --input D:/blog/posts --output D:/blog/posts_v1.6
     python main.py --help                        all flags; see README.md
 
-Gotchas:
-    - it runs in real time: the command blocks for `duration` seconds.
-    - the x axis is the Unix time of each sample, not seconds since start.
-    - a cap far above ~2000 needs a smaller sample_interval, or expand can skip past it
-      between samples and the curve looks flat.
+Gotchas (known limitations, kept as they were):
+    - all quote characters are removed from the written YAML, so "Don't panic: x" becomes
+      `title: Dont panic: x`: the apostrophe is lost and a ": " in a value breaks the YAML.
+    - a file without front matter gets the full template with defaults on top of its text.
 """
 
 # -----------------------------------------------------------------------------------------
 #                libraries
 # -----------------------------------------------------------------------------------------
 import argparse
-import csv
 import json
-import math
 import os
 import re
 import shutil
 import sys
-import time
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -70,9 +65,30 @@ import yaml
 #                variables
 # -----------------------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-DEFAULTS = {"duration": 20, "waiting_delay": 1, "cap": 2000, "floor": 0.1,
-            "sample_interval": 0.1, "plot": True, "output": "", "relative_to": "tool",
-            "dry_run": False}
+DEFAULTS = {
+    "input": "example/input",
+    "output": "example/output",
+    "pattern": "*.md",
+    # the new front matter, in this order, with the default of each field
+    "template_fields": {
+        "template": "1.6", "revision": "1.3", "title": "", "description": "",
+        "category": ["repository"], "tags": [], "created": "2023-03-01",
+        "updated": "2023-03-01", "author": "lichzelg", "translator": None, "editor": None,
+        "image": "first-blog-post.jpg", "image_credit": None, "language": "en",
+        "visibility": True, "sort_order": 1,
+    },
+    # new field: old field whose value is carried over when the old file has it
+    "keep_from_old": {
+        "revision": "version", "title": "title", "description": "description",
+        "tags": "tags", "created": "date", "language": "language",
+        "visibility": "isVisible",
+    },
+    "list_fields": ["tags"],
+    "list_separator": ";",
+    "today_fields": ["updated"],
+    "relative_to": "tool",
+    "dry_run": False,
+}
 RELATIVE_TO = ("tool", "cwd")
 
 # -----------------------------------------------------------------------------------------
@@ -82,15 +98,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     """Defines the CLI; flags default to None so unset ones don't override config."""
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--run", action="store_true", help="run with config defaults")
-    parser.add_argument("--duration", type=float, help="seconds to run (default: 20)")
-    parser.add_argument("--plot", action=argparse.BooleanOptionalAction, default=None,
-                        help="open the plot window (--no-plot: console and files only)")
+    parser.add_argument("--input",
+                        help="folder with the Markdown files (default: example/input/)")
     parser.add_argument("--output",
-                        help='folder for graph.png and samples.csv ("" = save nothing)')
+                        help="folder for the migrated files (default: example/output/)")
+    parser.add_argument("--pattern",
+                        help='files to migrate, subfolders included (default: "*.md")')
     parser.add_argument("--relative-to", choices=RELATIVE_TO,
                         help="base for relative paths: this tool's folder or the cwd")
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=None,
-                        help="run and print, but save nothing")
+                        help="list what would be written, write nothing")
     return parser.parse_args(argv)
 
 
@@ -246,11 +263,12 @@ def load_settings(args: argparse.Namespace) -> dict:
     """
     Merges settings: CLI flags > config.yaml > DEFAULTS.
 
-    Paths: an absolute "output" is used as-is; a relative one is resolved against this
-    tool's folder (relative_to: tool) or the current working directory (relative_to: cwd).
+    Paths: an absolute "input"/"output" is used as-is; a relative one is resolved
+    against this tool's folder (relative_to: tool) or the current working directory
+    (relative_to: cwd).
 
     Returns:
-        Settings; "output" is an absolute Path, or None when nothing is to be saved.
+        Settings with "input"/"output" as absolute Paths.
 
     Raises:
         SystemExit: relative_to is neither "tool" nor "cwd".
@@ -267,90 +285,79 @@ def load_settings(args: argparse.Namespace) -> dict:
         raise SystemExit(f"Invalid relative_to {settings['relative_to']!r} "
                          "in config.yaml: choose 'tool' or 'cwd'.")
     base = HERE if settings["relative_to"] == "tool" else Path.cwd()
-    output = Path(settings["output"]) if settings["output"] else None
-    settings["output"] = None if output is None else (
-        output if output.is_absolute() else base / output)
+    for key in ("input", "output"):
+        path = Path(settings[key])
+        settings[key] = path if path.is_absolute() else base / path
     return settings
 
 
-def simulate(settings: dict) -> tuple[list[float], list[float]]:
-    """
-    Runs the cycle in real time, printing "<value> <unix seconds>" per sample.
+class NoQuotesDumper(yaml.Dumper):
+    """Custom YAML Dumper to remove quotes and manage spacing"""
 
-    Returns:
-        (sample times as Unix seconds, sample values).
-    """
-    cap, floor, delay = settings["cap"], settings["floor"], settings["waiting_delay"]
-    graph_x, graph_y = [], []
-    difference = -1
-    time_pin = time.time()
-    time_print_delay = time_pin
-    end_time = time.time() + settings["duration"]
-    mod = "waiting0"
-
-    while time.time() < end_time:
-        value = 0.0
-        if mod == "waiting0":
-            if time.time() > time_pin + delay:
-                difference = time.time() - time_pin
-                mod = "expand"
-        elif mod == "expand":
-            value = abs(math.tan(time.time() - difference))
-            if value > cap:
-                value = cap
-                time_pin = time.time()
-                mod = "waiting1"
-        elif mod == "waiting1":
-            value = cap
-            if time.time() > time_pin + delay:
-                difference = time.time() - time_pin
-                mod = "collapse"
-        elif mod == "collapse":
-            value = abs(math.tan(time.time() - difference))
-            if value < floor:
-                value = 0.0
-                time_pin = time.time()
-                mod = "waiting0"
-
-        if time.time() > time_print_delay + settings["sample_interval"]:
-            time_print_delay = time.time()
-            print(f"{value:.4f}", int(time.time()))
-            graph_x.append(time.time())
-            graph_y.append(value)
-
-    return graph_x, graph_y
+    def increase_indent(self, flow=False, indentless=False):
+        return super(NoQuotesDumper, self).increase_indent(flow, indentless)
 
 
-def draw(plt, x: list[float], y: list[float]) -> None:
-    """Draws value over time onto the current matplotlib figure."""
-    plt.plot(x, y, label="time - value")
-    plt.xlabel("X-axis")
-    plt.ylabel("Y-axis")
+def extract_metadata(content: str) -> tuple[dict, str]:
+    """Splits a file into (front matter as a dict, body); no front matter gives {}."""
+    yaml_pattern = re.compile(r"---\n(.*?)\n---", re.DOTALL)
+    match = yaml_pattern.match(content)
+    if match:
+        old_metadata = yaml.safe_load(match.group(1)) or {}
+        body = content[match.end():].lstrip()
+        return old_metadata, body
+    return {}, content
 
 
-def save_results(x: list[float], y: list[float], output: Path) -> None:
-    """Writes samples.csv (unix_time, value) and graph.png into output, overwriting."""
-    import matplotlib
-    matplotlib.use("Agg")  # file only: no window, works without a display
-    import matplotlib.pyplot as plt
-
-    output.mkdir(parents=True, exist_ok=True)
-    with open(output / "samples.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["unix_time", "value"])
-        writer.writerows((f"{t:.4f}", f"{v:.6f}") for t, v in zip(x, y))
-    draw(plt, x, y)
-    plt.savefig(output / "graph.png", dpi=120)
-    plt.close()
-    print(f"Saved {output / 'samples.csv'} and {output / 'graph.png'}")
+def to_list(value, separator: str):
+    """A "a; b" string or a list as trimmed, non-empty items; anything else unchanged."""
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(separator) if item.strip()]
+    if isinstance(value, list):
+        return [item.strip() for item in value if item.strip()]
+    return value
 
 
-def show_plot(x: list[float], y: list[float]) -> None:
-    """Shows value over time in a blocking matplotlib window."""
-    import matplotlib.pyplot as plt  # imported here so --no-plot runs without a display
+def merge_metadata(old_metadata: dict, settings: dict) -> dict:
+    """Builds the new front matter; the rules are listed in the module docstring."""
+    new_metadata = {}
+    for key, default in settings["template_fields"].items():
+        old_key = settings["keep_from_old"].get(key)
+        value = old_metadata.get(old_key, default) if old_key else default
+        if key in settings["list_fields"]:
+            value = to_list(value, settings["list_separator"])
+        if key in settings["today_fields"]:
+            value = datetime.now().strftime("%Y-%m-%d").strip()
+        new_metadata[key] = value
+    return new_metadata
 
-    draw(plt, x, y)
-    plt.show()
+
+def dump_metadata_to_yaml(new_metadata: dict) -> str:
+    """Convert new metadata to YAML format without quotes"""
+    new_metadata_yaml = yaml.dump(
+        new_metadata,
+        sort_keys=False,
+        default_flow_style=False,
+        allow_unicode=True,
+        width=float('inf'),
+        Dumper=NoQuotesDumper
+    )
+
+    # Remove any remaining quotes around strings
+    return new_metadata_yaml.replace('"', '').replace("'", "")
+
+
+def migrate_file(source: Path, target: Path, settings: dict) -> None:
+    """Migrates one file's front matter and writes it to target, creating folders."""
+    print(f"Processing file: {source}")
+    with open(source, "r", encoding="utf-8") as file:
+        content = file.read()
+    old_metadata, body = extract_metadata(content)
+    new_metadata_yaml = dump_metadata_to_yaml(merge_metadata(old_metadata, settings))
+    print(f"Writing updated file to: {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "w", encoding="utf-8") as file:
+        file.write(f"---\n{new_metadata_yaml}---\n\n{body}")
 
 # -----------------------------------------------------------------------------------------
 #                main
@@ -362,17 +369,21 @@ def main(argv: list[str]) -> int:
         return 0
     # 2.-3. Settings (config.yaml offered on the first real run)
     settings = load_settings(parse_args(argv))
-    # 4. Simulate
-    x, y = simulate(settings)
-    # 5. Save
-    if settings["output"] is not None:
+    source_dir, output_dir = settings["input"], settings["output"]
+    if not source_dir.is_dir():
+        print(f"Input directory does not exist: {source_dir}")
+        return 1
+    # 4. Migrate
+    print("Starting metadata update process.")
+    files = sorted(p for p in source_dir.rglob(settings["pattern"]) if p.is_file())
+    for source in files:
+        target = output_dir / source.relative_to(source_dir)
         if settings["dry_run"]:
-            print(f"Dry run: nothing saved to {settings['output']}")
+            print(f"Would write: {target}")
         else:
-            save_results(x, y, settings["output"])
-    # 6. Plot window
-    if settings["plot"]:
-        show_plot(x, y)
+            migrate_file(source, target, settings)
+    print("Dry run: nothing written." if settings["dry_run"]
+          else f"Metadata update process completed ({len(files)} files).")
     return 0
 
 

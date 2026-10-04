@@ -1,21 +1,21 @@
 # -----------------------------------------------------------------------------------------
 #   author          : Kutay Coskuner
-#   ai-contributors : unknown (before 2026-10-04), Claude Opus 5.5 (claude-opus-5-5)
-#   last update     : 2026-10-04
+#   ai-contributors : unknown (before 2026-10-05), Claude Opus 5.5 (claude-opus-5-5)
+#   last update     : 2026-10-05
 #   template        : 3.1.1
 #   disclaimer      : Provided as is, without warranty of any kind; use at your own risk.
 #                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
 """
-Timing-curve visualizer: plays a wait -> expand -> wait -> collapse value cycle in real
-time and plots it, to find a timing function for animations.
+Code snippet renderer: renders syntax-highlighted code snippets, written as coloured
+text pieces in a JSON file, as an image (1920x1080 by default) for slides, posts or docs.
 
-The cycle (one sample every `sample_interval` seconds):
-    waiting0  value 0 for `waiting_delay` s
-    expand    |tan(t)| rises until it passes `cap`
-    waiting1  value `cap` for `waiting_delay` s
-    collapse  |tan(t)| falls until it drops below `floor`, then back to waiting0
-With the defaults one full cycle takes about 5 s.
+The JSON file (see example/input/):
+    {"title": {"text": "windows powershell", "color": "#666666"},   <- optional
+     "0": [["New-Item ", "#00FF00"], ["-Path ", "#00CCFF"]],        <- row 0: pieces
+     "1": [["", "#FFFFFF"]]}                                        <- an empty row
+Each row is a list of [text, colour] pieces drawn left to right; rows are numbered from
+0. With a title, the rows get a rounded frame with the title in its top-left corner.
 
 1. Bare run prints this guide and exits (no-args-usage-guide).
 2. The first real run offers to create config.yaml from config.example.yaml
@@ -23,56 +23,69 @@ With the defaults one full cycle takes about 5 s.
    since (update_config) and warn when its keys differ from the example's
    (check_config_keys).
 3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
-4. The cycle runs for `duration` seconds of wall-clock time, printing each sample as
-   "<value> <unix seconds>" (simulate).
-5. With `output` set, the samples are saved as samples.csv and the plot as graph.png
-   (save_results); a dry run saves nothing.
-6. With `plot` on, the plot opens in a window (show_plot).
+4. Every JSON file (a single file, or the files matching `pattern` in a folder) is
+   rendered (render_file): the font size is fitted so the longest row fills the width
+   inside the side margins, the rows are centred vertically, the frame and title drawn.
+5. Each image is saved as <output>/<name>.png (a single file: <output>/<output_name>);
+   a dry run only lists what would be rendered.
 
-Requires: this folder's .venv (pip install -r requirements.txt); a display for the plot
-window (or --no-plot). config.yaml is gitignored. No .env: the tool needs no secrets.
+Requires: this folder's .venv (pip install -r requirements.txt); the font (`font`) is
+looked up with matplotlib and falls back to its default font when it isn't installed.
+config.yaml is gitignored: your paths go there. No .env: the tool needs no secrets.
 
-Inputs -> outputs: config -> console samples, optional example/output/graph.png and
-samples.csv, optional plot window. As shipped, config.example.yaml runs one ~6 s cycle
-and writes into example/output/.
+Inputs -> outputs: JSON snippet files -> PNG images (overwritten; inputs never changed).
+As shipped, config.example.yaml renders the three snippets in example/input/.
 
 Run:
-    python main.py --run                         one cycle, saved to example/output/
-    python main.py --run --no-plot               same, without opening a window
-    python main.py --run --duration 20 --dry-run 20 s, console only, nothing saved
-    python main.py --run --output D:/graphs      save graph.png and samples.csv there
+    python main.py --run                         render the example snippets
+    python main.py --run --dry-run               list what would be rendered
+    python main.py --input D:/posts/snippet.json --output D:/posts/images
+    python main.py --run --width 1080 --height 1080   square images
     python main.py --help                        all flags; see README.md
 
 Gotchas:
-    - it runs in real time: the command blocks for `duration` seconds.
-    - the x axis is the Unix time of each sample, not seconds since start.
-    - a cap far above ~2000 needs a smaller sample_interval, or expand can skip past it
-      between samples and the curve looks flat.
+    - the font size follows the longest row (measured as that many "M"s), so one long
+      row makes all text smaller; split long lines into two rows.
+    - a monospace font keeps columns aligned; with a proportional one, indents drift.
 """
 
 # -----------------------------------------------------------------------------------------
 #                libraries
 # -----------------------------------------------------------------------------------------
 import argparse
-import csv
 import json
-import math
 import os
 import re
 import shutil
 import sys
-import time
 from pathlib import Path
 
 import yaml
+from matplotlib import font_manager
+from PIL import Image, ImageDraw, ImageFont
 
 # -----------------------------------------------------------------------------------------
 #                variables
 # -----------------------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-DEFAULTS = {"duration": 20, "waiting_delay": 1, "cap": 2000, "floor": 0.1,
-            "sample_interval": 0.1, "plot": True, "output": "", "relative_to": "tool",
-            "dry_run": False}
+DEFAULTS = {
+    "input": "example/input",
+    "output": "example/output",
+    "pattern": "*.json",
+    "output_name": "rendered.png",
+    "width": 1920,
+    "height": 1080,
+    "bg_color": "#101010",
+    "font": "Courier New",
+    "line_spacing": 1.2,
+    "v_margin": 0.05,
+    "h_margin": 0.05,
+    "frame_color": "#262626",
+    "frame_width": 4,
+    "frame_radius": 12,
+    "relative_to": "tool",
+    "dry_run": False,
+}
 RELATIVE_TO = ("tool", "cwd")
 
 # -----------------------------------------------------------------------------------------
@@ -82,15 +95,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     """Defines the CLI; flags default to None so unset ones don't override config."""
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--run", action="store_true", help="run with config defaults")
-    parser.add_argument("--duration", type=float, help="seconds to run (default: 20)")
-    parser.add_argument("--plot", action=argparse.BooleanOptionalAction, default=None,
-                        help="open the plot window (--no-plot: console and files only)")
+    parser.add_argument("--input", help="a JSON file, or a folder of them")
     parser.add_argument("--output",
-                        help='folder for graph.png and samples.csv ("" = save nothing)')
+                        help="folder for the images (default: example/output/)")
+    parser.add_argument("--width", type=int, help="image width in pixels (default: 1920)")
+    parser.add_argument("--height", type=int,
+                        help="image height in pixels (default: 1080)")
     parser.add_argument("--relative-to", choices=RELATIVE_TO,
                         help="base for relative paths: this tool's folder or the cwd")
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=None,
-                        help="run and print, but save nothing")
+                        help="list what would be rendered, write nothing")
     return parser.parse_args(argv)
 
 
@@ -246,11 +260,12 @@ def load_settings(args: argparse.Namespace) -> dict:
     """
     Merges settings: CLI flags > config.yaml > DEFAULTS.
 
-    Paths: an absolute "output" is used as-is; a relative one is resolved against this
-    tool's folder (relative_to: tool) or the current working directory (relative_to: cwd).
+    Paths: an absolute "input"/"output" is used as-is; a relative one is resolved
+    against this tool's folder (relative_to: tool) or the current working directory
+    (relative_to: cwd).
 
     Returns:
-        Settings; "output" is an absolute Path, or None when nothing is to be saved.
+        Settings with "input"/"output" as absolute Paths.
 
     Raises:
         SystemExit: relative_to is neither "tool" nor "cwd".
@@ -267,90 +282,179 @@ def load_settings(args: argparse.Namespace) -> dict:
         raise SystemExit(f"Invalid relative_to {settings['relative_to']!r} "
                          "in config.yaml: choose 'tool' or 'cwd'.")
     base = HERE if settings["relative_to"] == "tool" else Path.cwd()
-    output = Path(settings["output"]) if settings["output"] else None
-    settings["output"] = None if output is None else (
-        output if output.is_absolute() else base / output)
+    for key in ("input", "output"):
+        path = Path(settings[key])
+        settings[key] = path if path.is_absolute() else base / path
     return settings
 
 
-def simulate(settings: dict) -> tuple[list[float], list[float]]:
+def hex_to_rgb(hex_color: str):
+    """Convert hex string like '#1e88e5' to RGB tuple."""
+    hex_color = hex_color.lstrip("#")
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+
+class TextImage:
     """
-    Runs the cycle in real time, printing "<value> <unix seconds>" per sample.
+    A canvas that collects coloured text pieces per row and draws them as code.
+
+    add_phrase() collects pieces; draw_code_block() draws the frame and title;
+    save() fits the font, draws the rows and writes the PNG.
+    """
+
+    def __init__(self, settings: dict):
+        self.width = settings["width"]
+        self.height = settings["height"]
+        self.v_margin = settings["v_margin"]  # vertical margin, share of height
+        self.h_margin = settings["h_margin"]  # horizontal margin, share of width
+        self.line_spacing = settings["line_spacing"]
+        self.font_path = font_manager.findfont(settings["font"])
+        self.img = Image.new("RGB", (self.width, self.height),
+                             color=hex_to_rgb(settings["bg_color"]))
+        self.draw = ImageDraw.Draw(self.img)
+        self.rows = {}  # row_number -> list of (text, color)
+
+    def add_phrase(self, row_number, text, color="#FFFFFF"):
+        if row_number not in self.rows:
+            self.rows[row_number] = []
+        self.rows[row_number].append((text, color))
+
+    def _adjust_font_size(self):
+        """Scale font size so the longest row fits exactly within horizontal margins."""
+        # Find max character count in any row
+        max_chars = 0
+        for row_parts in self.rows.values():
+            row_text = "".join(text for text, _ in row_parts)
+            max_chars = max(max_chars, len(row_text))
+
+        available_width = self.width * (1 - 2 * self.h_margin)
+        if max_chars == 0:
+            return
+
+        # Binary search optimal font size based on 'M' width
+        low, high = 5, 500
+        target_size = 100
+        while low <= high:
+            mid = (low + high) // 2
+            font = ImageFont.truetype(self.font_path, mid)
+            bbox = font.getbbox("M" * max_chars)
+            row_width = bbox[2] - bbox[0]
+
+            if row_width < available_width:
+                target_size = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        self.font_size = target_size
+        self.font = ImageFont.truetype(self.font_path, target_size)
+        self.line_height = int(self.font_size * self.line_spacing)
+
+    def draw_code_block(self, title, text_color, frame_color, width, radius):
+        """Draw a rounded frame around the text rows with the title in its top left."""
+        if not self.rows:
+            return
+
+        # Ensure font/line_height is ready
+        if not hasattr(self, "line_height"):
+            self._adjust_font_size()
+
+        # Get first and last text row indices
+        row_numbers = sorted(self.rows.keys())
+        top_row = row_numbers[0]
+        bottom_row = row_numbers[-1]
+
+        # Total height of the text block
+        row_count = bottom_row - top_row + 1
+        available_height = self.height * (1 - 2 * self.v_margin)
+        total_height = self.line_height * row_count
+        offset_y = (available_height - total_height) / 2
+        start_y = self.height * self.v_margin + offset_y
+
+        # Frame: 3 rows above the text (title + gap) and 2 below
+        frame_top_y = start_y - 3 * self.line_height
+        frame_bottom_y = start_y + (row_count + 2) * self.line_height
+        left_x = self.width * (self.h_margin * 0.5)
+        right_x = self.width * (1 - self.h_margin * 0.5)
+
+        # Draw rounded rectangle frame
+        self.draw.rounded_rectangle(
+            [left_x, frame_top_y, right_x, frame_bottom_y],
+            outline=hex_to_rgb(frame_color),
+            width=width,
+            radius=radius,
+            fill=None
+        )
+
+        # Title text (left-aligned inside the frame, horizontal padding = 50% of h_margin)
+        title_padding = (self.width * self.h_margin * 0.5)
+        title_x = left_x + title_padding
+        title_y = frame_top_y + (self.line_height * 0.5)  # slight vertical padding
+        self.draw.text((title_x, title_y), title, fill=hex_to_rgb(text_color),
+                       font=self.font)
+
+    def render_rows(self):
+        """Draws every row's pieces left to right, the block centred vertically."""
+        if not self.rows:
+            return
+
+        self._adjust_font_size()
+
+        row_count = max(self.rows.keys()) + 1
+        available_height = self.height * (1 - 2 * self.v_margin)
+        total_height = self.line_height * row_count
+        start_y = self.height * self.v_margin + (available_height - total_height) / 2
+
+        for row_number in sorted(self.rows.keys()):
+            row_parts = self.rows[row_number]
+            y = start_y + row_number * self.line_height
+
+            # Left alignment: always start from the left margin
+            x = self.width * self.h_margin
+
+            # Draw text sequentially
+            for text, color in row_parts:
+                self.draw.text((x, y), text, fill=hex_to_rgb(color), font=self.font)
+                bbox = self.draw.textbbox((x, y), text, font=self.font)
+                text_width = bbox[2] - bbox[0]
+                x += text_width
+
+    def save(self, out_path: Path):
+        self.render_rows()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        self.img.save(out_path)
+        print(f"Saved {out_path}")
+
+
+def render_file(source: Path, target: Path, settings: dict) -> None:
+    """Renders one JSON snippet file into target (see the module docstring)."""
+    with open(source, "r", encoding="utf-8") as f:
+        rows = json.load(f)
+    ti = TextImage(settings)
+    title = rows.pop("title", None)
+    for row_number, row_parts in rows.items():
+        for text, color in row_parts:
+            ti.add_phrase(int(row_number), text, color)
+    if title:
+        ti.draw_code_block(title=title["text"], text_color=title["color"],
+                           frame_color=settings["frame_color"],
+                           width=settings["frame_width"], radius=settings["frame_radius"])
+    ti.save(target)
+
+
+def find_inputs(settings: dict) -> list[tuple[Path, Path]]:
+    """
+    Pairs each JSON file with its image path.
 
     Returns:
-        (sample times as Unix seconds, sample values).
+        [(json file, png file)]: a single file goes to <output>/<output_name>; files in
+        a folder become <output>/<name>.png. Empty when nothing matches.
     """
-    cap, floor, delay = settings["cap"], settings["floor"], settings["waiting_delay"]
-    graph_x, graph_y = [], []
-    difference = -1
-    time_pin = time.time()
-    time_print_delay = time_pin
-    end_time = time.time() + settings["duration"]
-    mod = "waiting0"
-
-    while time.time() < end_time:
-        value = 0.0
-        if mod == "waiting0":
-            if time.time() > time_pin + delay:
-                difference = time.time() - time_pin
-                mod = "expand"
-        elif mod == "expand":
-            value = abs(math.tan(time.time() - difference))
-            if value > cap:
-                value = cap
-                time_pin = time.time()
-                mod = "waiting1"
-        elif mod == "waiting1":
-            value = cap
-            if time.time() > time_pin + delay:
-                difference = time.time() - time_pin
-                mod = "collapse"
-        elif mod == "collapse":
-            value = abs(math.tan(time.time() - difference))
-            if value < floor:
-                value = 0.0
-                time_pin = time.time()
-                mod = "waiting0"
-
-        if time.time() > time_print_delay + settings["sample_interval"]:
-            time_print_delay = time.time()
-            print(f"{value:.4f}", int(time.time()))
-            graph_x.append(time.time())
-            graph_y.append(value)
-
-    return graph_x, graph_y
-
-
-def draw(plt, x: list[float], y: list[float]) -> None:
-    """Draws value over time onto the current matplotlib figure."""
-    plt.plot(x, y, label="time - value")
-    plt.xlabel("X-axis")
-    plt.ylabel("Y-axis")
-
-
-def save_results(x: list[float], y: list[float], output: Path) -> None:
-    """Writes samples.csv (unix_time, value) and graph.png into output, overwriting."""
-    import matplotlib
-    matplotlib.use("Agg")  # file only: no window, works without a display
-    import matplotlib.pyplot as plt
-
-    output.mkdir(parents=True, exist_ok=True)
-    with open(output / "samples.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["unix_time", "value"])
-        writer.writerows((f"{t:.4f}", f"{v:.6f}") for t, v in zip(x, y))
-    draw(plt, x, y)
-    plt.savefig(output / "graph.png", dpi=120)
-    plt.close()
-    print(f"Saved {output / 'samples.csv'} and {output / 'graph.png'}")
-
-
-def show_plot(x: list[float], y: list[float]) -> None:
-    """Shows value over time in a blocking matplotlib window."""
-    import matplotlib.pyplot as plt  # imported here so --no-plot runs without a display
-
-    draw(plt, x, y)
-    plt.show()
+    source, output = settings["input"], settings["output"]
+    if source.is_file():
+        return [(source, output / settings["output_name"])]
+    return [(path, output / f"{path.stem}.png")
+            for path in sorted(source.glob(settings["pattern"])) if path.is_file()]
 
 # -----------------------------------------------------------------------------------------
 #                main
@@ -362,17 +466,24 @@ def main(argv: list[str]) -> int:
         return 0
     # 2.-3. Settings (config.yaml offered on the first real run)
     settings = load_settings(parse_args(argv))
-    # 4. Simulate
-    x, y = simulate(settings)
-    # 5. Save
-    if settings["output"] is not None:
+    if not settings["input"].exists():
+        print(f"File or folder not found: {settings['input']}")
+        return 1
+    # 4.-5. Render and save
+    pairs = find_inputs(settings)
+    if not pairs:
+        print(f"No files matching {settings['pattern']!r} in {settings['input']}.")
+        return 0
+    for source, target in pairs:
         if settings["dry_run"]:
-            print(f"Dry run: nothing saved to {settings['output']}")
-        else:
-            save_results(x, y, settings["output"])
-    # 6. Plot window
-    if settings["plot"]:
-        show_plot(x, y)
+            print(f"Would render: {source.name} -> {target}")
+            continue
+        try:
+            render_file(source, target, settings)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(f"Could not render {source.name}: {error!r}")
+    if settings["dry_run"]:
+        print("Dry run: nothing written.")
     return 0
 
 

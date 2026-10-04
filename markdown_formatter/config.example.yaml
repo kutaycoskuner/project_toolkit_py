@@ -1,0 +1,19 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it formats the bundled example/input/essay.md into example/output/.
+#
+# Everything that controls the tool goes here, including your own paths. It needs no
+# secrets, so it has no .env.
+
+pattern: "*.md"               # files to format when input is a folder
+output_name: processed_text.md   # result name when input is a single file
+dry_run: false                # true = list what would be written, write nothing
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   input: C:/Users/me/essay.md -> exactly that file (absolute; relative_to is ignored)
+#   input: example/input        -> <this tool's folder>/example/input   (relative_to: tool)
+#   input: essays               -> <folder you run the command in>/essays (relative_to: cwd)
+relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
+input: example/input          # a file, or a folder of files to format
+output: example/output        # folder for the results (overwritten)

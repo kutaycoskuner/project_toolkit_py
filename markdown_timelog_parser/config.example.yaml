@@ -1,0 +1,18 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it parses the bundled example/input/timelog.md into example/output/.
+#
+# Everything that controls the tool goes here, including your own folders. It needs no
+# secrets, so it has no .env.
+
+pattern: "*.md"               # which files in the input folder to read
+dry_run: false                # true = print the totals, write nothing
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   input: C:/Users/me/notes    -> exactly that folder (absolute; relative_to is ignored)
+#   input: example/input        -> <this tool's folder>/example/input   (relative_to: tool)
+#   input: notes                -> <folder you run the command in>/notes (relative_to: cwd)
+relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
+input: example/input          # folder with the Markdown time logs
+output: example/output        # folder for sessions.csv and summary.csv (overwritten)

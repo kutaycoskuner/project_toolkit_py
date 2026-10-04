@@ -1,0 +1,24 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it runs one full cycle (~6 s) and saves it to example/output/.
+#
+# Everything that controls the tool goes here. It needs no secrets, so it has no .env.
+
+# The cycle: waiting0 (0) -> expand (|tan| up to cap) -> waiting1 (cap) -> collapse (down to floor)
+duration: 6               # seconds of wall-clock time to run (one cycle is ~5 s)
+waiting_delay: 1          # seconds spent in each waiting phase
+cap: 2000                 # value where expand stops and waiting1 holds
+floor: 0.1                # value below which collapse ends and drops to 0
+sample_interval: 0.1      # seconds between samples (printed, saved and plotted)
+
+# Results
+plot: true                # open the plot window at the end; false = console and files only
+dry_run: false            # true = run and print, but save nothing
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   output: C:/Users/me/graphs  -> exactly that folder (absolute; relative_to is ignored)
+#   output: example/output      -> <this tool's folder>/example/output   (relative_to: tool)
+#   output: graphs              -> <folder you run the command in>/graphs (relative_to: cwd)
+relative_to: tool         # base for relative paths: "tool" (default) or "cwd"
+output: example/output    # folder for graph.png and samples.csv; "" = save nothing

@@ -1,0 +1,58 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it adds two cooldown entries to example/input/cooldowns.xml.
+#
+# Everything that controls the tool goes here, including your own files and patterns.
+# It needs no secrets, so it has no .env.
+
+insert_before: "</cooldowns>" # the new elements go right before this text (the parent's closing tag)
+indent: auto                  # "auto" = like the input file (tabs here), or e.g. "    "
+dry_run: false                # true = preview the generated XML, write nothing
+
+# The pattern: a list of elements. Each has a tag, attributes, optional children (the
+# same shape, nested) and an optional repeat that generates it once per value.
+# Placeholders: {<repeat name>} = the value; {time} {minutes} {seconds} read it as
+# seconds ("1m 5s", 1, 5). true/false are written as True/False.
+elements:
+  - tag: cooldownentry
+    attributes:
+      name: Rope
+      defaultcooldown: 120
+      cooldownbartype: Regular
+      hue: 188
+      hidewheninactive: false
+    children:
+      - tag: trigger
+        repeat: {name: duration, from: 0, to: 120, step: 1}
+        attributes:
+          triggertype: SysMessage
+          duration: "{duration}"
+          triggertext: "You must wait another {time} before you may cast that spell again while in combat."
+
+  - tag: cooldownentry
+    attributes:
+      name: Bandage
+      defaultcooldown: 10
+      cooldownbartype: Regular
+      hue: 33
+      hidewheninactive: true
+    children:
+      - tag: trigger
+        attributes:
+          triggertype: SysMessage
+          duration: 10
+          triggertext: "You begin applying the bandages."
+      - tag: trigger
+        attributes:
+          triggertype: OverheadMessage
+          duration: 10
+          triggertext: "*applies bandages*"
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   input: C:/Users/me/razor/cooldowns.xml -> exactly that file (absolute; relative_to is ignored)
+#   input: example/input/cooldowns.xml     -> <this tool's folder>/example/input/... (relative_to: tool)
+#   input: cooldowns.xml                   -> <folder you run the command in>/cooldowns.xml (relative_to: cwd)
+relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
+input: example/input/cooldowns.xml               # the XML file to add to (never changed)
+output: example/output/cooldowns_generated.xml   # the copy with the new elements (overwritten)
