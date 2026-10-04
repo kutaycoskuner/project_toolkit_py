@@ -1,0 +1,6 @@
+# Committed defaults. The first real run copies this file to config.yaml (gitignored);
+# edit config.yaml, not this file, and put personal paths only there or in .env.
+# As shipped it processes the bundled example data. CLI flags override these values.
+input: example/input      # folder to read from, relative to this tool's folder
+output: example/output    # folder to write to, relative to this tool's folder
+dry_run: false            # true = show what would happen, write nothing

@@ -1,5 +1,0 @@
-# How the tool behaves. Committed to git, so no secrets or machine-specific paths here:
-# those go in .env (see .env.example). CLI flags override these values.
-input: input      # folder to read from, relative to this tool's folder
-output: output    # folder to write to, relative to this tool's folder
-dry_run: false    # true = show what would happen, write nothing

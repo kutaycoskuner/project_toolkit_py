@@ -1,24 +1,32 @@
 # -----------------------------------------------------------------------------------------
-#   author      : Kutay Coskuner
-#   last update : 2026-10-03
-#   template    : 1.0.0
-#   disclaimer  : Provided as is, without warranty of any kind; use at your own risk.
-#                 Check outputs before relying on them.
+#   author          : Kutay Coskuner
+#   ai-contributors : Claude Opus 5.5 (claude-opus-5-5)
+#   last update     : 2026-10-04
+#   template        : 2.0.0
+#   disclaimer      : Provided as is, without warranty of any kind; use at your own risk.
+#                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
 """
 <One line: what this tool is.>
 
-<What it does: 1-5 lines.>
+<What it does: 1-5 lines.> As shipped, run() is a demo: it writes an upper-cased copy of
+every .txt file in the input folder to the output folder.
 
-Requires: this folder's .venv (pip install -r requirements.txt); config.yaml;
-.env copied from .env.example (may stay empty).
+1. Bare run prints this guide and exits (no-args-usage-guide).
+2. The first real run offers to create config.yaml from config.example.yaml
+   (ensure_config).
+3. Settings come from CLI flags > .env > config.yaml > DEFAULTS (load_settings).
+4. The input folder is processed into the output folder (run).
 
-Inputs -> outputs: input/ -> output/ (relative paths resolve against this folder).
+Requires: this folder's .venv (pip install -r requirements.txt); .env copied from
+.env.example (may stay empty). config.yaml and .env are gitignored: personal paths go
+there, never into the committed config.example.yaml.
 
-Settings precedence: CLI flags > .env > config.yaml > DEFAULTS in main.py.
+Inputs -> outputs: example/input/ -> example/output/ until config.yaml points elsewhere
+(relative paths resolve against this folder).
 
 Run:
-    python main.py --run                     process input/ into output/
+    python main.py --run                     process example/input/ into example/output/
     python main.py --run --dry-run           show what would happen, write nothing
     python main.py --input <dir> --output <dir>
     python main.py --help                    all flags; see README.md
@@ -39,7 +47,7 @@ from dotenv import load_dotenv
 #                variables
 # -----------------------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-DEFAULTS = {"input": "input", "output": "output", "dry_run": False}
+DEFAULTS = {"input": "example/input", "output": "example/output", "dry_run": False}
 ENV_KEYS = {"input": "INPUT_DIR", "output": "OUTPUT_DIR"}
 
 # -----------------------------------------------------------------------------------------
@@ -49,11 +57,44 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     """Defines the CLI; flags default to None so unset ones don't override config."""
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--run", action="store_true", help="run with config defaults")
-    parser.add_argument("--input", help="input folder (default: input/)")
-    parser.add_argument("--output", help="output folder (default: output/)")
+    parser.add_argument("--input", help="input folder (default: example/input/)")
+    parser.add_argument("--output", help="output folder (default: example/output/)")
     parser.add_argument("--dry-run", action="store_true", default=None,
                         help="show what would happen, write nothing")
     return parser.parse_args(argv)
+
+
+def ensure_config(dry_run: bool) -> Path | None:
+    """
+    Returns the config file to read, offering to create config.yaml on the first run.
+
+    config.yaml is personal and gitignored, so a fresh checkout only has the committed
+    config.example.yaml. A real run asks before copying it (inform-and-confirm-each-step);
+    on "no", without a terminal, or in a dry run, nothing is written and the example is
+    read for this run only.
+
+    Returns:
+        config.yaml, config.example.yaml (until config.yaml exists), or None when
+        neither exists.
+    """
+    config, example = HERE / "config.yaml", HERE / "config.example.yaml"
+    if config.exists():
+        return config
+    if not example.exists():
+        return None
+    if not dry_run:
+        try:
+            answer = input("config.yaml not found. "
+                           "Create it from config.example.yaml? (y/n): ")
+        except EOFError:
+            answer = ""
+            print()
+        if answer.strip().lower() == "y":
+            config.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"Created {config.name}; edit it to use your own data.")
+            return config
+    print("Using config.example.yaml for this run; config.yaml was not created.")
+    return example
 
 
 def load_settings(args: argparse.Namespace) -> dict:
@@ -65,8 +106,8 @@ def load_settings(args: argparse.Namespace) -> dict:
         against this folder, not the shell's cwd).
     """
     settings = dict(DEFAULTS)
-    config_file = HERE / "config.yaml"
-    if config_file.exists():
+    config_file = ensure_config(bool(args.dry_run))
+    if config_file:
         settings.update(yaml.safe_load(config_file.read_text(encoding="utf-8")) or {})
     load_dotenv(HERE / ".env")
     settings.update({k: os.environ[e] for k, e in ENV_KEYS.items() if os.environ.get(e)})
@@ -78,14 +119,29 @@ def load_settings(args: argparse.Namespace) -> dict:
 
 
 def run(settings: dict) -> None:
-    """<The tool's actual work.> Writes nothing when settings["dry_run"] is set."""
+    """
+    Demo work, replace with the tool's own: upper-cases every .txt file into output.
+
+    Writes nothing when settings["dry_run"] is set.
+    """
+    dry_run = settings["dry_run"]
     print(f"input : {settings['input']}")
     print(f"output: {settings['output']}")
-    if settings["dry_run"]:
-        print("dry run: nothing written")
+    files = sorted(settings["input"].glob("*.txt"))
+    if not files:
+        print("No .txt files in the input folder.")
         return
-    settings["input"].mkdir(exist_ok=True)
-    settings["output"].mkdir(exist_ok=True)
+    if not dry_run:
+        settings["output"].mkdir(parents=True, exist_ok=True)
+    for src in files:
+        dst = settings["output"] / src.name
+        if dry_run:
+            print(f"would write: {dst.name}")
+            continue
+        dst.write_text(src.read_text(encoding="utf-8").upper(), encoding="utf-8")
+        print(f"processed: {src.name} -> {dst}")
+    if dry_run:
+        print("dry run: nothing written")
 
 # -----------------------------------------------------------------------------------------
 #                main
@@ -95,9 +151,12 @@ def main(argv: list[str]) -> int:
     if not argv:
         print(__doc__.strip())
         return 0
-    # 2. Settings from CLI, .env, config.yaml and defaults
+    # 2.-3. Settings from CLI, .env, config.yaml (created on the first real run), defaults
     settings = load_settings(parse_args(argv))
-    # 3. Work
+    if not settings["input"].is_dir():
+        print(f"Input folder not found: {settings['input']}")
+        return 1
+    # 4. Work
     run(settings)
     return 0
 
