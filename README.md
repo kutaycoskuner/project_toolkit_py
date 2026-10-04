@@ -8,7 +8,7 @@
 
 <p align="center">
     <img alt="Python" src="https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white" />
-    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.20.2-blue" />
+    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.28-blue" />
     <img alt="Project Start" src="https://img.shields.io/badge/project_start-17_Mar_2024-blue" />
     <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py" />
 </p>
@@ -25,7 +25,8 @@
         - [graph_visualizer/README.md](graph_visualizer/README.md): [Folders](graph_visualizer/README.md#folders) · [Usage](graph_visualizer/README.md#usage) · [Settings](graph_visualizer/README.md#settings) · [Setup](graph_visualizer/README.md#setup-python-environment)
     - [Image Resizer](#image-resizer): resize every image in a folder to one size
         - [image_resizer/README.md](image_resizer/README.md): [Folders](image_resizer/README.md#folders) · [Usage](image_resizer/README.md#usage) · [Settings](image_resizer/README.md#settings) · [Setup](image_resizer/README.md#setup-python-environment)
-    - [Markdown Tools](#markdown-tools): frontmatter changer, essay formatter, data parser (not standardized yet)
+    - [Markdown Tools](#markdown-tools): frontmatter changer, essay formatter (not standardized yet), time-log data parser
+        - [markdown_timelog_parser/README.md](markdown_timelog_parser/README.md): [Folders](markdown_timelog_parser/README.md#folders) · [Usage](markdown_timelog_parser/README.md#usage) · [Settings](markdown_timelog_parser/README.md#settings) · [Setup](markdown_timelog_parser/README.md#setup-python-environment)
     - [Pixel Matcher](#pixel-matcher): compare two images pixel by pixel (not standardized yet)
     - [Repetitive XML](#repetitive-xml): generate repetitive XML entries from YAML (not standardized yet)
     - [Text Hardcode](#text-hardcode): write numbered command lines (not standardized yet)
@@ -114,9 +115,9 @@ Resizes every image in a folder to one fixed size (default 1024×1024, set in `c
 Tools to automate and format Markdown documents.
 - `markdown_metadata_template_changer`: converts a file's `---` frontmatter block from one template to another; the conversion rules have to be declared first. Last update: `2025-01-12`.
 - `markdown_formatter`: formats Markdown essays (experimental). Last update: `2025-02-21`.
-- `markdown_data_parser`: meant to build structured data from hand-written Markdown files such as time logs (stub, not implemented yet). Last update: `2024-04-19`.
+- `markdown_timelog_parser`: turns hand-written Markdown time logs (`- 20250927 21.04-22.05`) into `sessions.csv` and `summary.csv` with totals per month and day; see [its README](markdown_timelog_parser/README.md). Last update: `2024-04-19`.
 - **Use case**: Formatting and batch-revising Markdown files.
-- **Folders**: [markdown_metadata_template_changer/](markdown_metadata_template_changer/), [markdown_formatter/](markdown_formatter/), [markdown_data_parser/](markdown_data_parser/)
+- **Folders**: [markdown_metadata_template_changer/](markdown_metadata_template_changer/), [markdown_formatter/](markdown_formatter/), [markdown_timelog_parser/](markdown_timelog_parser/)
 
 ### Pixel Matcher
 Compares two images by analyzing pixel color differences.
