@@ -2,7 +2,7 @@
 #   author          : Kutay Coskuner
 #   ai-contributors : Claude Opus 5.5 (claude-opus-5-5)
 #   last update     : 2026-10-04
-#   template        : 3.0.0
+#   template        : 3.1.0
 #   disclaimer      : Provided as is, without warranty of any kind; use at your own risk.
 #                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
@@ -14,7 +14,8 @@ every .txt file in the input folder to the output folder.
 
 1. Bare run prints this guide and exits (no-args-usage-guide).
 2. The first real run offers to create config.yaml from config.example.yaml
-   (ensure_config); later runs warn when its keys differ from the example's
+   (ensure_config); later runs offer to update it when config.example.yaml has changed
+   since (update_config) and warn when its keys differ from the example's
    (check_config_keys).
 3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
 4. The input folder is processed into the output folder (run).
@@ -38,6 +39,9 @@ Run:
 #                libraries
 # -----------------------------------------------------------------------------------------
 import argparse
+import json
+import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -84,6 +88,8 @@ def ensure_config(dry_run: bool) -> Path | None:
     """
     config, example = HERE / "config.yaml", HERE / "config.example.yaml"
     if config.exists():
+        if example.exists():
+            update_config(config, example, dry_run)
         return config
     if not example.exists():
         return None
@@ -100,6 +106,75 @@ def ensure_config(dry_run: bool) -> Path | None:
             return config
     print("Using config.example.yaml for this run; config.yaml was not created.")
     return example
+
+
+def merge_config_text(example_text: str, old: dict) -> tuple[str, list[str]]:
+    """
+    Puts the values of an old config into the text of a new example.
+
+    Only top-level `key: value` lines are touched, so comments, order and new keys come
+    from the example. Values are written as JSON, which is valid YAML.
+
+    Returns:
+        (merged text, old keys the example no longer has).
+    """
+    # key : spacing : value : optional comment : line ending
+    line_re = re.compile(r"^([A-Za-z_][\w-]*):([ \t]*)([^#\r\n]*?)"
+                         r"([ \t]*#[^\r\n]*)?(\r?\n)?$")
+    merged, used = [], set()
+    for line in example_text.splitlines(keepends=True):
+        match = line_re.match(line)
+        if match and match.group(1) in old and match.group(3).strip():
+            key, space, value, comment, newline = match.groups()
+            new_value = json.dumps(old[key], ensure_ascii=False).ljust(len(value))
+            line = f"{key}:{space}{new_value}{comment or ''}{newline or ''}"
+            used.add(key)
+        merged.append(line)
+    return "".join(merged), [key for key in old if key not in used]
+
+
+def update_config(config: Path, example: Path, dry_run: bool) -> None:
+    """
+    Offers to update config.yaml when config.example.yaml changed after it was made.
+
+    "Changed after" means the example is newer than config.yaml: a git pull that changes
+    the example counts, editing config.yaml yourself doesn't. Before overwriting, the
+    old config.yaml is saved as config.yaml.bak (gitignored). Without a terminal or in a
+    dry run, nothing is written (inform-and-confirm-each-step).
+    """
+    if example.stat().st_mtime <= config.stat().st_mtime:
+        return
+    print("config.example.yaml has changed since your config.yaml was made.")
+    if dry_run:
+        print("Dry run: config.yaml left as it is.")
+        return
+    try:
+        answer = input("  m = update: new example, keep your values (recommended)\n"
+                       "  r = replace: fresh copy of the example, your values are lost\n"
+                       "  k = keep config.yaml as it is\n"
+                       "Choice (m/r/k): ").strip().lower()
+    except EOFError:
+        print("\nNo terminal to ask on: config.yaml left as it is.")
+        return
+    backup = config.with_name("config.yaml.bak")
+    if answer == "m":
+        with open(example, encoding="utf-8", newline="") as f:
+            example_text = f.read()
+        old = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
+        merged, dropped = merge_config_text(example_text, old)
+        shutil.copyfile(config, backup)
+        with open(config, "w", encoding="utf-8", newline="") as f:
+            f.write(merged)
+        print(f"Updated config.yaml, your values kept (old one: {backup.name}).")
+        if dropped:
+            print(f"No longer in the example, dropped: {', '.join(dropped)}.")
+    elif answer == "r":
+        shutil.copyfile(config, backup)
+        shutil.copyfile(example, config)
+        print(f"Replaced config.yaml with the example (old one: {backup.name}).")
+    else:
+        os.utime(config)  # newer than the example now: asked again after its next change
+        print("Kept config.yaml; you'll be asked again after the next example change.")
 
 
 def check_config_keys(loaded: dict) -> None:

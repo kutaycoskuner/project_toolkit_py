@@ -2,29 +2,30 @@
 #   author          : Kutay Coskuner
 #   ai-contributors : unknown (before 2026-10-04), Claude Opus 5.5 (claude-opus-5-5)
 #   last update     : 2026-10-04
-#   template        : 3.0.0
+#   template        : 3.1.0
 #   disclaimer      : Provided as is, without warranty of any kind; use at your own risk.
 #                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
 """
-Batch renamer: adds the folder name as a prefix to files, or removes it, either in place
-or as renamed copies in an output folder.
+Batch renamer: adds or removes a prefix (the folder name by default), renames to a
+numbered template, lower-cases names and changes extensions, in place or as renamed copies.
 
 1. Bare run prints this guide and exits (no-args-usage-guide).
 2. The first real run offers to create config.yaml from config.example.yaml
-   (ensure_config); later runs warn when its keys differ from the example's
+   (ensure_config); later runs offer to update it when config.example.yaml has changed
+   since (update_config) and warn when its keys differ from the example's
    (check_config_keys).
 3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
 4. Files in the work folder matching the pattern are listed (find_files).
-5. Every planned rename is previewed, collisions resolved with a 01, 02 ... suffix
-   (plan_renames).
+5. Every file's new name is built in one pass: numbered rename, prefix add/remove,
+   lowercase, extension (build_name); every planned rename is previewed, collisions
+   resolved with a 01, 02 ... suffix (plan_renames).
 6. A dry run stops here; otherwise you confirm with y/n (confirm).
 7. Confirmed renames are applied: in place, or as renamed copies written to the
    output folder while the originals stay unchanged (apply_renames).
 
-Requires: this folder's .venv (pip install -r requirements.txt); .env copied from
-.env.example, for secrets only (may stay empty). config.yaml and .env are gitignored:
-your work folder goes in config.yaml.
+Requires: this folder's .venv (pip install -r requirements.txt). config.yaml is
+gitignored: your work folder goes there. No .env: the tool needs no secrets.
 
 Inputs -> outputs: files in the work folder -> renamed in place when output is empty,
 otherwise renamed copies in the output folder (only files that get a new name are
@@ -36,11 +37,14 @@ Run:
     python main.py --run --dry-run               preview only, change nothing
     python main.py --folder D:/Assets/Stone --in-place
     python main.py --folder D:/Assets/Stone --mode add
-    python main.py --folder D:/Assets/Stone --mode remove --pattern "*.png"
+    python main.py --folder D:/Assets/Stone --mode none --rename frame --digits 3
+    python main.py --folder D:/Assets/Stone --mode none --lowercase --extension .md
     python main.py --help                        all flags; see README.md
 
 Gotchas:
-    - the prefix match in remove mode ignores case ("stone_c" counts for folder "Stone").
+    - the prefix match in remove mode ignores case ("stone_c" counts for folder "Stone");
+      files without the prefix keep their name but still get the other changes.
+    - the rename number counts every matched file in preview order, starting at 1.
     - in place, a target name that exists on disk gets a suffix even if that file is
       renamed later in the same run, because renames run one by one in preview order.
 """
@@ -50,21 +54,23 @@ Gotchas:
 # -----------------------------------------------------------------------------------------
 import argparse
 import glob
+import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
 
 import yaml
-from dotenv import load_dotenv
 
 # -----------------------------------------------------------------------------------------
 #                variables
 # -----------------------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-DEFAULTS = {"folder": "", "output": "", "pattern": "*", "mode": "remove",
+DEFAULTS = {"folder": "", "output": "", "pattern": "*", "mode": "remove", "prefix": "",
+            "rename": "", "digits": 2, "lowercase": False, "extension": "",
             "relative_to": "tool", "dry_run": False}
-MODES = ("add", "remove")
+MODES = ("add", "remove", "none")
 RELATIVE_TO = ("tool", "cwd")
 
 # -----------------------------------------------------------------------------------------
@@ -76,7 +82,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--run", action="store_true", help="run with config defaults")
     parser.add_argument("--folder", help="work folder (default: folder in config.yaml)")
     parser.add_argument("--pattern", help='glob pattern inside the folder (default: "*")')
-    parser.add_argument("--mode", choices=MODES, help="add or remove the folder prefix")
+    parser.add_argument("--mode", choices=MODES,
+                        help="add or remove the prefix, or none to leave prefixes alone")
+    parser.add_argument("--prefix",
+                        help="prefix to add/remove (default: the folder's name)")
+    parser.add_argument("--rename", help="rename to <rename>_01, _02 ... (default: keep)")
+    parser.add_argument("--digits", type=int,
+                        help="width of the rename number (default: 2)")
+    parser.add_argument("--lowercase", action=argparse.BooleanOptionalAction, default=None,
+                        help="lower-case the new names")
+    parser.add_argument("--extension", help='new extension, e.g. ".md" (default: keep)')
     parser.add_argument("--relative-to", choices=RELATIVE_TO,
                         help="base for relative paths: this tool's folder or the cwd")
     target = parser.add_mutually_exclusive_group()
@@ -103,6 +118,8 @@ def ensure_config(dry_run: bool) -> Path | None:
     """
     config, example = HERE / "config.yaml", HERE / "config.example.yaml"
     if config.exists():
+        if example.exists():
+            update_config(config, example, dry_run)
         return config
     if not example.exists():
         return None
@@ -119,6 +136,75 @@ def ensure_config(dry_run: bool) -> Path | None:
             return config
     print("Using config.example.yaml for this run; config.yaml was not created.")
     return example
+
+
+def merge_config_text(example_text: str, old: dict) -> tuple[str, list[str]]:
+    """
+    Puts the values of an old config into the text of a new example.
+
+    Only top-level `key: value` lines are touched, so comments, order and new keys come
+    from the example. Values are written as JSON, which is valid YAML.
+
+    Returns:
+        (merged text, old keys the example no longer has).
+    """
+    # key : spacing : value : optional comment : line ending
+    line_re = re.compile(r"^([A-Za-z_][\w-]*):([ \t]*)([^#\r\n]*?)"
+                         r"([ \t]*#[^\r\n]*)?(\r?\n)?$")
+    merged, used = [], set()
+    for line in example_text.splitlines(keepends=True):
+        match = line_re.match(line)
+        if match and match.group(1) in old and match.group(3).strip():
+            key, space, value, comment, newline = match.groups()
+            new_value = json.dumps(old[key], ensure_ascii=False).ljust(len(value))
+            line = f"{key}:{space}{new_value}{comment or ''}{newline or ''}"
+            used.add(key)
+        merged.append(line)
+    return "".join(merged), [key for key in old if key not in used]
+
+
+def update_config(config: Path, example: Path, dry_run: bool) -> None:
+    """
+    Offers to update config.yaml when config.example.yaml changed after it was made.
+
+    "Changed after" means the example is newer than config.yaml: a git pull that changes
+    the example counts, editing config.yaml yourself doesn't. Before overwriting, the
+    old config.yaml is saved as config.yaml.bak (gitignored). Without a terminal or in a
+    dry run, nothing is written (inform-and-confirm-each-step).
+    """
+    if example.stat().st_mtime <= config.stat().st_mtime:
+        return
+    print("config.example.yaml has changed since your config.yaml was made.")
+    if dry_run:
+        print("Dry run: config.yaml left as it is.")
+        return
+    try:
+        answer = input("  m = update: new example, keep your values (recommended)\n"
+                       "  r = replace: fresh copy of the example, your values are lost\n"
+                       "  k = keep config.yaml as it is\n"
+                       "Choice (m/r/k): ").strip().lower()
+    except EOFError:
+        print("\nNo terminal to ask on: config.yaml left as it is.")
+        return
+    backup = config.with_name("config.yaml.bak")
+    if answer == "m":
+        with open(example, encoding="utf-8", newline="") as f:
+            example_text = f.read()
+        old = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
+        merged, dropped = merge_config_text(example_text, old)
+        shutil.copyfile(config, backup)
+        with open(config, "w", encoding="utf-8", newline="") as f:
+            f.write(merged)
+        print(f"Updated config.yaml, your values kept (old one: {backup.name}).")
+        if dropped:
+            print(f"No longer in the example, dropped: {', '.join(dropped)}.")
+    elif answer == "r":
+        shutil.copyfile(config, backup)
+        shutil.copyfile(example, config)
+        print(f"Replaced config.yaml with the example (old one: {backup.name}).")
+    else:
+        os.utime(config)  # newer than the example now: asked again after its next change
+        print("Kept config.yaml; you'll be asked again after the next example change.")
 
 
 def check_config_keys(loaded: dict) -> None:
@@ -164,7 +250,6 @@ def load_settings(args: argparse.Namespace) -> dict:
         if config_file.name == "config.yaml":
             check_config_keys(loaded)
         settings.update(loaded)
-    load_dotenv(HERE / ".env")  # secrets only (os.getenv where needed); never settings
     settings.update({k: v for k, v in vars(args).items() if v is not None and k != "run"})
     if settings["relative_to"] not in RELATIVE_TO:
         raise SystemExit(f"Invalid relative_to {settings['relative_to']!r} "
@@ -182,47 +267,78 @@ def find_files(folder: Path, pattern: str) -> list[str]:
     return glob.glob(os.path.join(folder, pattern))
 
 
-def plan_renames(file_list: list[str], folder_name: str, mode: str,
-                 output: Path | None) -> list[tuple]:
+def build_name(name: str, ext: str, number: int, prefix: str,
+               settings: dict) -> tuple[str, str] | None:
+    """
+    Builds a file's new (name, extension), applying the steps in this order.
+
+    1. rename: "<rename>_<number>" with `digits` digits, or keep the name
+    2. mode: add "<prefix>_", remove a leading prefix (case-insensitive, plus one "-" or
+       "_" after it), or none
+    3. lowercase the name (not the extension)
+    4. replace or add the extension
+
+    Returns:
+        (name, extension), or None when removing the prefix leaves an empty name.
+    """
+    base = name
+    if settings["rename"]:
+        base = f"{settings['rename']}_{number:0{settings['digits']}d}"
+    if settings["mode"] == "add":
+        base = f"{prefix}_{base}"
+    elif settings["mode"] == "remove" and base.lower().startswith(prefix.lower()):
+        base = base[len(prefix) :]
+        if base.startswith(("-", "_")):
+            base = base[1:]
+        if base == "":
+            return None
+    if settings["lowercase"]:
+        base = base.lower()
+    new_ext = settings["extension"]
+    if new_ext and not new_ext.startswith("."):
+        new_ext = f".{new_ext}"
+    return base, new_ext or ext
+
+
+def plan_renames(file_list: list[str], folder_name: str, settings: dict) -> list[tuple]:
     """
     Prints the preview of every planned rename and returns them.
 
-    A target name is taken if it was already claimed earlier in this run or, in place,
-    if it exists on disk; it then gets the first free 01, 02 ... suffix. Copies into
-    output overwrite what a previous run left there.
+    Files whose name doesn't change are skipped and claim nothing. A target name is
+    taken if it was already claimed earlier in this run or, in place, if it exists on
+    disk; it then gets the first free 01, 02 ... suffix. Copies into output overwrite
+    what a previous run left there.
 
     Returns:
         (old_path, new_path, old_name, new_name) per rename, in preview order.
     """
-    folder_lower = folder_name.lower()
+    output = settings["output"]
+    prefix = settings["prefix"] or folder_name
     planned_changes = []
     idx = 1
+    number = 0
     # names that will exist once the renames planned so far are applied
     virtual_existing_files = set()
 
-    print(f"\n--- Calculating Planned Changes ({mode.upper()} mode) ---")
+    print(f"\n--- Calculating Planned Changes ({settings['mode'].upper()} mode) ---")
     if output is not None:
         print(f"    renamed copies go to {output}; the originals stay unchanged")
 
     for file_path in file_list:
         if not os.path.isfile(file_path):
             continue
+        number += 1
 
         dir_path, file_name = os.path.split(file_path)
         name, ext = os.path.splitext(file_name)
 
-        if mode == "add":
-            candidate_base = f"{folder_name}_{name}"
-        else:
-            if not name.lower().startswith(folder_lower):
-                continue
-            new_name = name[len(folder_name) :]
-            if new_name.startswith(("-", "_")):
-                new_name = new_name[1:]
-            if new_name == "":
-                print(f"  [Skipping empty name generation]: {file_name}")
-                continue
-            candidate_base = new_name
+        built = build_name(name, ext, number, prefix, settings)
+        if built is None:
+            print(f"  [Skipping empty name generation]: {file_name}")
+            continue
+        candidate_base, ext = built
+        if f"{candidate_base}{ext}" == file_name:
+            continue
 
         target_dir = dir_path if output is None else output
 
@@ -304,7 +420,7 @@ def main(argv: list[str]) -> int:
         print("No work folder set: use --folder or folder in config.yaml.")
         return 1
     if settings["mode"] not in MODES:
-        print("Invalid mode in config.yaml. Choose 'add' or 'remove'.")
+        print("Invalid mode in config.yaml. Choose 'add', 'remove' or 'none'.")
         return 1
     # 4. Files
     file_list = find_files(settings["folder"], settings["pattern"])
@@ -312,8 +428,7 @@ def main(argv: list[str]) -> int:
         print("No files found matching the configuration filters.")
         return 0
     # 5. Preview
-    planned = plan_renames(file_list, settings["folder"].name, settings["mode"],
-                           settings["output"])
+    planned = plan_renames(file_list, settings["folder"].name, settings)
     if not planned:
         print("\nNo pending name changes detected.")
         return 0

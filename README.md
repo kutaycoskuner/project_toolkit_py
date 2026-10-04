@@ -71,7 +71,7 @@ Details for each tool, including its flags and settings, are in that tool's own 
 Each tool lives in its own folder; standardized tools have a `README.md` there with usage and settings.
 
 ### File Renamer
-Bulk-renames the files in a folder, adding the folder's name as a prefix or removing it. It previews every rename and asks for confirmation; `--dry-run` previews without changing anything.
+Bulk-renames the files in a folder: adds or removes a prefix (the folder's name by default), renames to a numbered template, lower-cases names and changes extensions, in place or as renamed copies. It previews every rename and asks for confirmation; `--dry-run` previews without changing anything.
 - **Use case**: Organizing images, files and assets with consistent names.
 - **Folder**: [file_renamer/](file_renamer/README.md)
 - **Last update**: `2026-06-01`

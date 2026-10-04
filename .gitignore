@@ -22,6 +22,7 @@ _test/
 
 # per-tool settings: config.example.yaml is committed, config.yaml (personal paths) stays local
 **/config.yaml
+**/config.yaml.bak
 
 # ----------------------------------------------------------------------------------------
 #               python base from github

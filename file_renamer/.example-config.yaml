@@ -1,7 +1,0 @@
-paths:
-  work_folder: "D:/Assets/Stone"
-
-filters:
-  pattern: "*"
-
-mode: "remove"   # "add" or "remove"

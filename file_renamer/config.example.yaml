@@ -2,9 +2,8 @@
 # (gitignored); edit config.yaml, not this file. CLI flags override these values.
 # As shipped it processes the bundled example: the folder name "Stone" is the prefix.
 #
-# config.yaml vs .env: everything that controls the tool goes here (folder, output, mode,
-# pattern, dry_run). Secrets (API keys, tokens, passwords) go in .env; this tool needs none.
-# Rule of thumb: would leaking it grant access or cost money? Then .env, not here.
+# Everything that controls the tool goes here. It needs no secrets, so it has no .env;
+# if it ever does, they go in .env (see the template), never in this file.
 
 # Paths: what you type decides absolute vs. relative; relative_to only matters for
 # relative paths. Examples:
@@ -15,6 +14,13 @@ relative_to: tool             # base for relative paths: "tool" (default) or "cw
 folder: example/input/Stone   # work folder; your personal path goes in config.yaml
 output: example/output        # renamed copies go here, originals stay unchanged;
                               # empty ("") = rename the files in the work folder itself
-mode: remove                  # "add" or "remove" the folder name prefix
 pattern: "*"                  # glob pattern of files to rename inside the folder
+
+# New names are built in this order: rename -> mode/prefix -> lowercase -> extension.
+rename: ""                    # "frame" = frame_01, frame_02 ... (in preview order); "" = keep names
+digits: 2                     # width of the rename number: 2 = 01, 3 = 001
+mode: remove                  # "add" or "remove" the prefix, or "none" to leave prefixes alone
+prefix: ""                    # text to add/remove; "" = the work folder's name (e.g. "Stone")
+lowercase: false              # true = lower-case the new names (the extension is kept)
+extension: ""                 # ".md" = change or add that extension; "" = keep each file's own
 dry_run: false                # true = preview only, change nothing
