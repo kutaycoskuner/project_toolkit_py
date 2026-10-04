@@ -23,7 +23,8 @@
         - [file_renamer/README.md](file_renamer/README.md): [Folders](file_renamer/README.md#folders) · [Usage](file_renamer/README.md#usage) · [Settings](file_renamer/README.md#settings) · [Setup](file_renamer/README.md#setup-python-environment)
     - [Graph Visualizer](#graph-visualizer): plot a timing cycle for animations
         - [graph_visualizer/README.md](graph_visualizer/README.md): [Folders](graph_visualizer/README.md#folders) · [Usage](graph_visualizer/README.md#usage) · [Settings](graph_visualizer/README.md#settings) · [Setup](graph_visualizer/README.md#setup-python-environment)
-    - [Image Resizer](#image-resizer): resize textures (not standardized yet, no README)
+    - [Image Resizer](#image-resizer): resize every image in a folder to one size
+        - [image_resizer/README.md](image_resizer/README.md): [Folders](image_resizer/README.md#folders) · [Usage](image_resizer/README.md#usage) · [Settings](image_resizer/README.md#settings) · [Setup](image_resizer/README.md#setup-python-environment)
     - [Markdown Tools](#markdown-tools): frontmatter changer, essay formatter, data parser (not standardized yet)
     - [Pixel Matcher](#pixel-matcher): compare two images pixel by pixel (not standardized yet)
     - [Repetitive XML](#repetitive-xml): generate repetitive XML entries from YAML (not standardized yet)
@@ -104,9 +105,9 @@ Plays a wait → expand → wait → collapse value cycle in real time and plots
 - **Last update**: `2024-04-19`
 
 ### Image Resizer
-Batch-resizes textures with Pillow (the target size is set in `main.py`), reading the input and output folders from `.env`.
+Resizes every image in a folder to one fixed size (default 1024×1024, set in `config.yaml` or with `--size`) into an output folder; the originals are never changed.
 - **Use case**: Preparing large texture sets for game development or 3D projects.
-- **Folder**: [image_resizer/](image_resizer/)
+- **Folder**: [image_resizer/](image_resizer/README.md)
 - **Last update**: `2025-02-21`
 
 ### Markdown Tools

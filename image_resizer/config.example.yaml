@@ -1,0 +1,21 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it resizes the bundled example images into example/output/.
+#
+# Everything that controls the tool goes here, including your own folders. It needs no
+# secrets, so it has no .env.
+
+# Size: exact, the aspect ratio is not kept (2048x1024 -> 1024x1024); small images grow.
+width: 1024                   # target width in pixels
+height: 1024                  # target height in pixels
+extensions: [".png", ".jpg", ".jpeg", ".tga"]   # files to resize (case-insensitive); others are skipped
+dry_run: false                # true = list what would be resized, write nothing
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   input: C:/Users/me/textures -> exactly that folder (absolute; relative_to is ignored)
+#   input: example/input        -> <this tool's folder>/example/input    (relative_to: tool)
+#   input: textures             -> <folder you run the command in>/textures (relative_to: cwd)
+relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
+input: example/input          # folder with the images to resize
+output: example/output        # folder for the resized copies (same names, overwritten)
