@@ -1,0 +1,21 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# This config is the tool's example: it needs no input files, and as shipped it writes
+# lines 7981..8044 to example/output/output.txt.
+#
+# Everything that controls the tool goes here. It needs no secrets, so it has no .env.
+
+start: 7981                               # first number (included)
+end: 8044                                 # last number (included)
+step: 1                                   # count by this much: 10 -> 0, 10, 20 ...
+line: "pushlist spellbook_scrolls {i}"    # {i} is the number; write a literal brace as {{ or }}
+output_file: output.txt                   # file name in the output folder (overwritten)
+dry_run: false                            # true = show the first and last line, write nothing
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   output: C:/Users/me/macros  -> exactly that folder (absolute; relative_to is ignored)
+#   output: example/output      -> <this tool's folder>/example/output   (relative_to: tool)
+#   output: macros              -> <folder you run the command in>/macros (relative_to: cwd)
+relative_to: tool                         # base for relative paths: "tool" (default) or "cwd"
+output: example/output                    # folder for the file

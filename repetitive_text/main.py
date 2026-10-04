@@ -7,15 +7,8 @@
 #                     Check outputs before relying on them.
 # -----------------------------------------------------------------------------------------
 """
-PDF text recognition: turns PDFs into Markdown text files, reading each page's text
-layer and falling back to OCR (Tesseract) for pages that are only an image (scans).
-
-Per page (extract_pdf):
-    - the page's text layer is read with pypdf
-    - with `ocr: auto`, a page without text is rendered to an image (PyMuPDF, at
-      `ocr_zoom` x 72 dpi) and read with Tesseract in `ocr_language`; `always` OCRs
-      every page, `never` no page
-    - text pages are joined as they come; each OCR'd page is followed by a blank line
+Numbered line generator: writes one line per number from `start` to `end` into a text
+file, from a line template such as "pushlist spellbook_scrolls {i}".
 
 1. Bare run prints this guide and exits (no-args-usage-guide).
 2. The first real run offers to create config.yaml from config.example.yaml
@@ -23,36 +16,34 @@ Per page (extract_pdf):
    since (update_config) and warn when its keys differ from the example's
    (check_config_keys).
 3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
-4. Every PDF (a single file, or the files matching `pattern` in a folder) is read page
-   by page (extract_pdf) and written as <name>.md to the output folder; a dry run only
-   reports which pages would need OCR.
+4. The line template is filled in for every number from start to end, both included,
+   counting by step (build_lines).
+5. The lines are written to <output>/<output_file> (write_lines); a dry run only shows
+   the first and last line.
 
-Requires: this folder's .venv (pip install -r requirements.txt); for OCR, Tesseract
-(https://github.com/UB-Mannheim/tesseract/wiki) on PATH or at `tesseract_cmd` in
-config.yaml, with the language data for `ocr_language`. config.yaml is gitignored: your
-paths go there. No .env: the tool needs no secrets.
+Requires: this folder's .venv (pip install -r requirements.txt). config.yaml is
+gitignored: your settings go there. No .env: the tool needs no secrets.
 
-Inputs -> outputs: PDFs -> <output>/<name>.md (overwritten; the PDFs are never changed).
-As shipped, config.example.yaml reads example/input/: a text PDF and a scanned one.
+Inputs -> outputs: config / flags -> example/output/output.txt by default (overwritten
+on every run). The tool reads no input files: config.example.yaml is its example.
 
 Run:
-    python main.py --run                         read the example PDFs into example/output/
-    python main.py --run --dry-run               list pages needing OCR, write nothing
-    python main.py --input D:/scans/report.pdf --output D:/scans/text
-    python main.py --run --ocr always --ocr-zoom 3   every page by OCR, 216 dpi
+    python main.py --run                         lines 7981..8044 into example/output/
+    python main.py --run --dry-run               show first and last line, write nothing
+    python main.py --start 1 --end 10 --line "pushlist spellbook_scrolls {i}"
+    python main.py --start 0 --end 100 --step 10 --line "wait {i}"
     python main.py --help                        all flags; see README.md
 
 Gotchas:
-    - OCR quality depends on resolution: zoom 1 (72 dpi) misreads small print, 2-3 is
-      better but slower.
-    - text from the text layer keeps the PDF's own line breaks and spacing.
+    - "{i}" in the line template is the number; other braces must be doubled ("{{" or
+      "}}"), because the template is a Python format string.
+    - the file has no trailing newline after the last line.
 """
 
 # -----------------------------------------------------------------------------------------
 #                libraries
 # -----------------------------------------------------------------------------------------
 import argparse
-import io
 import json
 import os
 import re
@@ -60,28 +51,22 @@ import shutil
 import sys
 from pathlib import Path
 
-import fitz  # PyMuPDF: renders pages for OCR
-import pytesseract
 import yaml
-from PIL import Image
-from pypdf import PdfReader
 
 # -----------------------------------------------------------------------------------------
 #                variables
 # -----------------------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
 DEFAULTS = {
-    "input": "example/input",
+    "start": 7981,
+    "end": 8044,
+    "step": 1,
+    "line": "pushlist spellbook_scrolls {i}",
     "output": "example/output",
-    "pattern": "*.pdf",
-    "ocr": "auto",
-    "ocr_language": "eng",
-    "ocr_zoom": 1,
-    "tesseract_cmd": "",
+    "output_file": "output.txt",
     "relative_to": "tool",
     "dry_run": False,
 }
-OCR_MODES = ("auto", "always", "never")
 RELATIVE_TO = ("tool", "cwd")
 
 # -----------------------------------------------------------------------------------------
@@ -91,19 +76,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     """Defines the CLI; flags default to None so unset ones don't override config."""
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--run", action="store_true", help="run with config defaults")
-    parser.add_argument("--input",
-                        help="a PDF, or a folder of PDFs (default: example/input/)")
-    parser.add_argument("--output",
-                        help="folder for the .md files (default: example/output/)")
-    parser.add_argument("--ocr", choices=OCR_MODES,
-                        help="when to OCR a page (default: auto)")
-    parser.add_argument("--ocr-language",
-                        help='Tesseract language(s), e.g. "eng" or "eng+tur"')
-    parser.add_argument("--ocr-zoom", type=float, help="render scale for OCR, 1 = 72 dpi")
+    parser.add_argument("--start", type=int, help="first number (included)")
+    parser.add_argument("--end", type=int, help="last number (included)")
+    parser.add_argument("--step", type=int, help="count by this much (default: 1)")
+    parser.add_argument("--line", help='line template, "{i}" is the number')
+    parser.add_argument("--output", help="output folder (default: example/output/)")
     parser.add_argument("--relative-to", choices=RELATIVE_TO,
                         help="base for relative paths: this tool's folder or the cwd")
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=None,
-                        help="list pages and which need OCR, write nothing")
+                        help="show the first and last line, write nothing")
     return parser.parse_args(argv)
 
 
@@ -259,15 +240,14 @@ def load_settings(args: argparse.Namespace) -> dict:
     """
     Merges settings: CLI flags > config.yaml > DEFAULTS.
 
-    Paths: an absolute "input"/"output" is used as-is; a relative one is resolved
-    against this tool's folder (relative_to: tool) or the current working directory
-    (relative_to: cwd).
+    Paths: an absolute "output" is used as-is; a relative one is resolved against this
+    tool's folder (relative_to: tool) or the current working directory (relative_to: cwd).
 
     Returns:
-        Settings with "input"/"output" as absolute Paths.
+        Settings with "output" as an absolute Path.
 
     Raises:
-        SystemExit: relative_to or ocr has an invalid value.
+        SystemExit: relative_to is neither "tool" nor "cwd".
     """
     settings = dict(DEFAULTS)
     config_file = ensure_config(bool(args.dry_run))
@@ -280,75 +260,32 @@ def load_settings(args: argparse.Namespace) -> dict:
     if settings["relative_to"] not in RELATIVE_TO:
         raise SystemExit(f"Invalid relative_to {settings['relative_to']!r} "
                          "in config.yaml: choose 'tool' or 'cwd'.")
-    if settings["ocr"] not in OCR_MODES:
-        raise SystemExit(f"Invalid ocr {settings['ocr']!r} in config.yaml: "
-                         "choose 'auto', 'always' or 'never'.")
     base = HERE if settings["relative_to"] == "tool" else Path.cwd()
-    for key in ("input", "output"):
-        path = Path(settings[key])
-        settings[key] = path if path.is_absolute() else base / path
+    path = Path(settings["output"])
+    settings["output"] = path if path.is_absolute() else base / path
     return settings
 
 
-def tesseract_ready(settings: dict) -> bool:
-    """Points pytesseract at tesseract_cmd (if set) and checks Tesseract runs."""
-    if settings["tesseract_cmd"]:
-        pytesseract.pytesseract.tesseract_cmd = settings["tesseract_cmd"]
+def build_lines(start: int, end: int, step: int, line: str) -> list[str]:
+    """
+    One filled-in line per number from start to end, both included, counting by step.
+
+    Raises:
+        SystemExit: the template uses a placeholder other than {i}.
+    """
     try:
-        pytesseract.get_tesseract_version()
-        return True
-    except (pytesseract.TesseractNotFoundError, OSError):
-        return False
+        return [line.format(i=i) for i in range(start, end + 1, step)]
+    except (KeyError, IndexError) as error:
+        raise SystemExit(f"Line template {line!r} uses {error}; only {{i}} is defined "
+                         "(write a literal brace as {{ or }}).")
 
 
-def ocr_page(document, page_number: int, settings: dict) -> str:
-    """
-    Renders one page and reads it with Tesseract.
-
-    The page goes through a JPEG step, as in the original tool, which saved pages as JPG
-    files before OCR; keeping it keeps the OCR results the same.
-    """
-    zoom = settings["ocr_zoom"]
-    pix = document.load_page(page_number).get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-    buffer = io.BytesIO()
-    img.save(buffer, "JPEG")
-    buffer.seek(0)
-    return pytesseract.image_to_string(Image.open(buffer), lang=settings["ocr_language"])
-
-
-def needs_ocr(page_text: str | None, mode: str) -> bool:
-    """Whether a page is OCR'd: always / never, or (auto) when it has no text layer."""
-    return mode == "always" or (mode == "auto" and not page_text)
-
-
-def extract_pdf(pdf_path: Path, settings: dict, ocr_available: bool) -> tuple[str, list]:
-    """
-    Reads every page: its text layer, or OCR where needs_ocr() says so.
-
-    Returns:
-        (the document's text, page numbers that needed OCR but couldn't get it).
-    """
-    reader = PdfReader(pdf_path)
-    document = fitz.open(pdf_path)
-    text, skipped = "", []
-    for number, page in enumerate(reader.pages):
-        page_text = page.extract_text()
-        if not needs_ocr(page_text, settings["ocr"]):
-            text += page_text or ""
-        elif ocr_available:
-            text += ocr_page(document, number, settings) + "\n\n"
-            print(f"  page {number + 1}: read with OCR")
-        else:
-            skipped.append(number + 1)
-    return text, skipped
-
-
-def find_pdfs(source: Path, pattern: str) -> list[Path]:
-    """The input PDF, or the PDFs matching pattern in the input folder (sorted)."""
-    if source.is_file():
-        return [source]
-    return sorted(p for p in source.glob(pattern) if p.is_file())
+def write_lines(lines: list[str], output_path: Path) -> None:
+    """Writes the lines joined by newlines (no trailing newline), creating the folder."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    print(f"Saved to {output_path}")
 
 # -----------------------------------------------------------------------------------------
 #                main
@@ -360,38 +297,20 @@ def main(argv: list[str]) -> int:
         return 0
     # 2.-3. Settings (config.yaml offered on the first real run)
     settings = load_settings(parse_args(argv))
-    if not settings["input"].exists():
-        print(f"File or folder {settings['input']} does not exist.")
+    if settings["step"] < 1:
+        print("step must be 1 or more.")
         return 1
-    pdfs = find_pdfs(settings["input"], settings["pattern"])
-    if not pdfs:
-        print(f"No PDFs matching {settings['pattern']!r} in {settings['input']}.")
-        return 0
-    ocr_available = settings["ocr"] != "never" and tesseract_ready(settings)
-    # 4. Read every PDF
-    for pdf in pdfs:
-        if not pdf.suffix.lower() == ".pdf":
-            print(f"File {pdf} is not a PDF.")
-            continue
-        reader = PdfReader(pdf)
-        ocr_pages = [n + 1 for n, page in enumerate(reader.pages)
-                     if needs_ocr(page.extract_text(), settings["ocr"])]
-        count = len(reader.pages)
-        pages = f"OCR for page(s) {ocr_pages}" if ocr_pages else "all with a text layer"
-        print(f"{pdf.name}: {count} page{'' if count == 1 else 's'}, {pages}")
-        if settings["dry_run"]:
-            continue
-        text, skipped = extract_pdf(pdf, settings, ocr_available)
-        if skipped:
-            print(f"  page(s) {skipped} have no text layer and Tesseract wasn't found: "
-                  "they are missing. Install it or set tesseract_cmd in config.yaml.")
-        target = settings["output"] / f"{pdf.stem}.md"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with open(target, "w", encoding="utf-8") as file:
-            file.write(text)
-        print(f"Text extracted and saved to {target}")
+    # 4. Lines
+    lines = build_lines(settings["start"], settings["end"], settings["step"],
+                        settings["line"])
+    output_path = settings["output"] / settings["output_file"]
+    print(f"{len(lines)} lines" + (f", first: {lines[0]!r}, last: {lines[-1]!r}"
+                                   if lines else " (end is before start)"))
+    # 5. Write
     if settings["dry_run"]:
-        print("Dry run: nothing written.")
+        print(f"Dry run: would write {output_path}")
+        return 0
+    write_lines(lines, output_path)
     return 0
 
 

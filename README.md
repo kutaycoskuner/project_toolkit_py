@@ -18,7 +18,9 @@
 - [Installation and Use](#installation-and-use)
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
-- [Tools](#tools): standardized tools have their own README
+- [Tools](#tools): every tool has its own README
+    - [Code Snippet Renderer](#code-snippet-renderer): styled images of code snippets
+        - [code_snippet_renderer/README.md](code_snippet_renderer/README.md): [Folders](code_snippet_renderer/README.md#folders) · [Usage](code_snippet_renderer/README.md#usage) · [Settings](code_snippet_renderer/README.md#settings) · [Setup](code_snippet_renderer/README.md#setup-python-environment)
     - [File Renamer](#file-renamer): bulk-rename files (prefix, numbered rename, lowercase, extension)
         - [file_renamer/README.md](file_renamer/README.md): [Folders](file_renamer/README.md#folders) · [Usage](file_renamer/README.md#usage) · [Settings](file_renamer/README.md#settings) · [Setup](file_renamer/README.md#setup-python-environment)
     - [Graph Visualizer](#graph-visualizer): plot a timing cycle for animations
@@ -31,11 +33,12 @@
         - [markdown_timelog_parser/README.md](markdown_timelog_parser/README.md): [Folders](markdown_timelog_parser/README.md#folders) · [Usage](markdown_timelog_parser/README.md#usage) · [Settings](markdown_timelog_parser/README.md#settings) · [Setup](markdown_timelog_parser/README.md#setup-python-environment)
     - [Pixel Matcher](#pixel-matcher): compare frames, measure pixel differences, find an image in an image
         - [pixel_matcher/README.md](pixel_matcher/README.md): [Folders](pixel_matcher/README.md#folders) · [Usage](pixel_matcher/README.md#usage) · [Settings](pixel_matcher/README.md#settings) · [Setup](pixel_matcher/README.md#setup-python-environment)
+    - [Repetitive Text](#repetitive-text): write numbered command lines from a template
+        - [repetitive_text/README.md](repetitive_text/README.md): [Folders](repetitive_text/README.md#folders) · [Usage](repetitive_text/README.md#usage) · [Settings](repetitive_text/README.md#settings) · [Setup](repetitive_text/README.md#setup-python-environment)
     - [Repetitive XML](#repetitive-xml): generate repetitive XML elements from a pattern
         - [repetitive_xml/README.md](repetitive_xml/README.md): [Folders](repetitive_xml/README.md#folders) · [Usage](repetitive_xml/README.md#usage) · [Settings](repetitive_xml/README.md#settings) · [Setup](repetitive_xml/README.md#setup-python-environment)
-    - [Text Hardcode](#text-hardcode): write numbered command lines (not standardized yet)
-    - [Text Recognizer (PDF)](#text-recognizer-pdf): OCR text out of PDFs and images (not standardized yet)
-    - [Text to Image (syntax highlighter)](#text-to-image-syntax-highlighter): styled images of code snippets (not standardized yet)
+    - [Text Recognizer (PDF)](#text-recognizer-pdf): PDFs to Markdown, with OCR for scanned pages
+        - [text_recognition_pdf/README.md](text_recognition_pdf/README.md): [Folders](text_recognition_pdf/README.md#folders) · [Usage](text_recognition_pdf/README.md#usage) · [Settings](text_recognition_pdf/README.md#settings) · [Setup](text_recognition_pdf/README.md#setup-python-environment)
 - [Tool template](_template/README.md): the starting point for new and standardized tools
     - [Folders](_template/README.md#folders) · [Usage](_template/README.md#usage) · [Settings](_template/README.md#settings) · [Setup](_template/README.md#setup-python-environment) · [Template](_template/README.md#template-delete-this-section-in-a-copy)
     - [CHANGELOG.md](_template/CHANGELOG.md): template versions and how to upgrade a tool
@@ -71,7 +74,6 @@ python -m venv .venv
 source .venv/bin/activate
 
 # 5. Install the tool's dependencies
-#   tools not yet standardized have no requirements.txt: install the packages listed in their main.py header instead
 pip install -r requirements.txt
 
 # 6. Create your .env from the example; it holds secrets only (API keys, tokens) and may stay empty.
@@ -95,7 +97,13 @@ Details for each tool, including its flags and settings, are in that tool's own 
 
 # Tools
 
-Each tool lives in its own folder; standardized tools have a `README.md` there with usage and settings.
+Each tool lives in its own folder, with a `README.md` there for its usage, settings and setup.
+
+### Code Snippet Renderer
+Renders code snippets, written as coloured text pieces in a JSON file, as images (1920×1080 by default) with an auto-fitted monospace font and an optional rounded code-block frame with a title; size, colours, font and margins are set in `config.yaml`.
+- **Use case**: Code snippets and documentation graphics for presentations, tutorials or social media.
+- **Folder**: [code_snippet_renderer/](code_snippet_renderer/README.md)
+- **Last update**: `2025-09-27`
 
 ### File Renamer
 Bulk-renames the files in a folder: adds or removes a prefix (the folder's name by default), renames to a numbered template, lower-cases names and changes extensions, in place or as renamed copies. It previews every rename and asks for confirmation; `--dry-run` previews without changing anything.
@@ -129,29 +137,23 @@ Compares images pixel by pixel in three modes: `scenes` checks rendered frames a
 - **Folder**: [pixel_matcher/](pixel_matcher/README.md)
 - **Last update**: `2024-07-03`
 
+### Repetitive Text
+Writes one line per number from `start` to `end` (counting by `step`) into a text file, from a line template such as `pushlist spellbook_scrolls {i}`; all set in `config.yaml` or with flags.
+- **Use case**: Generating long, numbered command lists for scripts.
+- **Folder**: [repetitive_text/](repetitive_text/README.md)
+- **Last update**: `2025-12-28`
+
 ### Repetitive XML
 Generates XML elements from a pattern in `config.yaml` (any tags, attributes and nesting, with repeated children such as one `<trigger>` per second and `{time}` placeholders like `1m 5s`) and inserts them into a copy of an XML file.
 - **Use case**: Writing long, repetitive XML entries that would be error-prone by hand.
 - **Folder**: [repetitive_xml/](repetitive_xml/README.md)
 - **Last update**: `not committed yet`
 
-### Text Hardcode
-Writes a numbered list of text lines (`pushlist spellbook_scrolls 7981` … `8044`, set in `main.py`) to `output/output.txt`.
-- **Use case**: Generating long, numbered command lists for scripts.
-- **Folder**: [text_hardcode/](text_hardcode/)
-- **Last update**: `2025-12-28`
-
 ### Text Recognizer (PDF)
-An OCR (optical character recognition) tool that extracts text from PDFs or images into raw `.txt` or `.md` files.
+Turns PDFs into Markdown text files: each page is read from its text layer, and pages that are only an image (scans) are read with OCR (Tesseract).
 - **Use case**: Pulling the text out of human-readable documents.
-- **Folder**: [text_recognition_pdf/](text_recognition_pdf/)
+- **Folder**: [text_recognition_pdf/](text_recognition_pdf/README.md)
 - **Last update**: `2024-07-10`
-
-### Text to Image (syntax highlighter)
-Converts code or text snippets into styled images with customizable syntax highlighting, alignment, margins and framing. Supports titles, headings, and color themes for different platforms (e.g. PowerShell, Python).
-- **Use case**: Code snippets and documentation graphics for presentations, tutorials or social media.
-- **Folder**: [text_to_image/](text_to_image/)
-- **Last update**: `2025-09-27`
 
 ------------------------------------------------------------------------------------------
 

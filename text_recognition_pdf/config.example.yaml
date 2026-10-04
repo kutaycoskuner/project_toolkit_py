@@ -1,0 +1,26 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it reads the two example PDFs (one with a text layer, one scanned) into
+# example/output/.
+#
+# Everything that controls the tool goes here, including your own paths. It needs no
+# secrets, so it has no .env.
+
+pattern: "*.pdf"              # PDFs to read when input is a folder
+dry_run: false                # true = list pages and which need OCR, write nothing
+
+# OCR (for pages that are only an image, e.g. scans)
+ocr: auto                     # auto = only pages without a text layer | always | never
+ocr_language: eng             # Tesseract language(s), e.g. "eng+tur" (data must be installed)
+ocr_zoom: 2                   # render scale, 1 = 72 dpi; 2-3 reads small print better, but slower
+tesseract_cmd: ""             # path to tesseract.exe if it isn't on PATH, e.g.
+                              # C:/Users/me/AppData/Local/Programs/Tesseract-OCR/tesseract.exe
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   input: C:/Users/me/scans    -> exactly that folder (absolute; relative_to is ignored)
+#   input: example/input        -> <this tool's folder>/example/input   (relative_to: tool)
+#   input: scans/report.pdf     -> <folder you run the command in>/scans/report.pdf (relative_to: cwd)
+relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
+input: example/input          # a PDF, or a folder of PDFs
+output: example/output        # folder for the .md files (one per PDF, overwritten)

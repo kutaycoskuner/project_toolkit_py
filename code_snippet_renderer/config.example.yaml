@@ -1,0 +1,33 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it renders the three snippets in example/input/ into example/output/.
+#
+# Everything that controls the tool goes here, including your own paths. It needs no
+# secrets, so it has no .env.
+
+pattern: "*.json"             # snippet files to render when input is a folder
+output_name: rendered.png     # image name when input is a single file
+dry_run: false                # true = list what would be rendered, write nothing
+
+# Image
+width: 1920                   # pixels
+height: 1080                  # pixels
+bg_color: "#101010"           # background
+font: Courier New             # looked up with matplotlib; a monospace font keeps columns aligned
+line_spacing: 1.2             # line height = font size x this
+v_margin: 0.05                # top/bottom margin, share of the height
+h_margin: 0.05                # left/right margin, share of the width (the longest row fills the rest)
+
+# Frame (drawn when the JSON has a "title")
+frame_color: "#262626"
+frame_width: 4                # pixels
+frame_radius: 12              # corner radius in pixels
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   input: C:/Users/me/snippets -> exactly that folder (absolute; relative_to is ignored)
+#   input: example/input        -> <this tool's folder>/example/input      (relative_to: tool)
+#   input: snippet.json         -> <folder you run the command in>/snippet.json (relative_to: cwd)
+relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
+input: example/input          # a JSON snippet file, or a folder of them
+output: example/output        # folder for the images (overwritten)
