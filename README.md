@@ -13,6 +13,27 @@
     <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py" />
 </p>
 
+## Contents
+
+- [Installation and Use](#installation-and-use)
+    - [Prerequisites](#prerequisites)
+    - [Installation](#installation)
+- [Tools](#tools): standardized tools have their own README
+    - [File Renamer](#file-renamer): bulk-rename files (prefix, numbered rename, lowercase, extension)
+        - [file_renamer/README.md](file_renamer/README.md): [Folders](file_renamer/README.md#folders) · [Usage](file_renamer/README.md#usage) · [Settings](file_renamer/README.md#settings) · [Setup](file_renamer/README.md#setup-python-environment)
+    - [Graph Visualizer](#graph-visualizer): plot a timing cycle for animations
+        - [graph_visualizer/README.md](graph_visualizer/README.md): [Folders](graph_visualizer/README.md#folders) · [Usage](graph_visualizer/README.md#usage) · [Settings](graph_visualizer/README.md#settings) · [Setup](graph_visualizer/README.md#setup-python-environment)
+    - [Image Resizer](#image-resizer): resize textures (not standardized yet, no README)
+    - [Markdown Tools](#markdown-tools): frontmatter changer, essay formatter, data parser (not standardized yet)
+    - [Pixel Matcher](#pixel-matcher): compare two images pixel by pixel (not standardized yet)
+    - [Repetitive XML](#repetitive-xml): generate repetitive XML entries from YAML (not standardized yet)
+    - [Text Hardcode](#text-hardcode): write numbered command lines (not standardized yet)
+    - [Text Recognizer (PDF)](#text-recognizer-pdf): OCR text out of PDFs and images (not standardized yet)
+    - [Text to Image (syntax highlighter)](#text-to-image-syntax-highlighter): styled images of code snippets (not standardized yet)
+- [Tool template](_template/README.md): the starting point for new and standardized tools
+    - [Folders](_template/README.md#folders) · [Usage](_template/README.md#usage) · [Settings](_template/README.md#settings) · [Setup](_template/README.md#setup-python-environment) · [Template](_template/README.md#template-delete-this-section-in-a-copy)
+    - [CHANGELOG.md](_template/CHANGELOG.md): template versions and how to upgrade a tool
+
 ------------------------------------------------------------------------------------------
 
 # Installation and Use
@@ -77,22 +98,22 @@ Bulk-renames the files in a folder: adds or removes a prefix (the folder's name 
 - **Last update**: `2026-06-01`
 
 ### Graph Visualizer
-Runs a wait → expand → wait → collapse value cycle in real time and plots it; timing, cap and sampling are set in `config.yaml`.
+Plays a wait → expand → wait → collapse value cycle in real time and plots it; timing, cap and sampling are set in `config.yaml`, and the graph and samples can be saved (`graph.png`, `samples.csv`).
 - **Use case**: Finding the right timing function for animations.
 - **Folder**: [graph_visualizer/](graph_visualizer/README.md)
 - **Last update**: `2024-04-19`
 
 ### Image Resizer
-Resizes every image in a folder to one fixed size (default 1024×1024, set in `config.yaml` or with `--size`); the input and output folders come from `.env` or flags.
+Batch-resizes textures with Pillow (the target size is set in `main.py`), reading the input and output folders from `.env`.
 - **Use case**: Preparing large texture sets for game development or 3D projects.
-- **Folder**: [image_resizer/](image_resizer/README.md)
+- **Folder**: [image_resizer/](image_resizer/)
 - **Last update**: `2025-02-21`
 
 ### Markdown Tools
 Tools to automate and format Markdown documents.
 - `markdown_metadata_template_changer`: converts a file's `---` frontmatter block from one template to another; the conversion rules have to be declared first. Last update: `2025-01-12`.
 - `markdown_formatter`: formats Markdown essays (experimental). Last update: `2025-02-21`.
-- `markdown_data_parser`: meant to build structured data from hand-written Markdown files such as time logs (tool skeleton ready, parsing not implemented yet; see [its README](markdown_data_parser/README.md)). Last update: `2024-04-19`.
+- `markdown_data_parser`: meant to build structured data from hand-written Markdown files such as time logs (stub, not implemented yet). Last update: `2024-04-19`.
 - **Use case**: Formatting and batch-revising Markdown files.
 - **Folders**: [markdown_metadata_template_changer/](markdown_metadata_template_changer/), [markdown_formatter/](markdown_formatter/), [markdown_data_parser/](markdown_data_parser/)
 
@@ -109,9 +130,9 @@ Generates a complete `<cooldownentry>` block from a YAML config (one trigger per
 - **Last update**: `not committed yet`
 
 ### Text Hardcode
-Writes one line per number from `start` to `end` into `output/output.txt`, using a line template such as `pushlist spellbook_scrolls {i}` (all set in `config.yaml` or with flags).
+Writes a numbered list of text lines (`pushlist spellbook_scrolls 7981` … `8044`, set in `main.py`) to `output/output.txt`.
 - **Use case**: Generating long, numbered command lists for scripts.
-- **Folder**: [text_hardcode/](text_hardcode/README.md)
+- **Folder**: [text_hardcode/](text_hardcode/)
 - **Last update**: `2025-12-28`
 
 ### Text Recognizer (PDF)
