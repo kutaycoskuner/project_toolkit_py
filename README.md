@@ -29,7 +29,8 @@
         - [markdown_frontmatter_migrator/README.md](markdown_frontmatter_migrator/README.md): [Folders](markdown_frontmatter_migrator/README.md#folders) · [Usage](markdown_frontmatter_migrator/README.md#usage) · [Settings](markdown_frontmatter_migrator/README.md#settings) · [Setup](markdown_frontmatter_migrator/README.md#setup-python-environment)
         - [markdown_formatter/README.md](markdown_formatter/README.md): [Folders](markdown_formatter/README.md#folders) · [Usage](markdown_formatter/README.md#usage) · [Settings](markdown_formatter/README.md#settings) · [Setup](markdown_formatter/README.md#setup-python-environment)
         - [markdown_timelog_parser/README.md](markdown_timelog_parser/README.md): [Folders](markdown_timelog_parser/README.md#folders) · [Usage](markdown_timelog_parser/README.md#usage) · [Settings](markdown_timelog_parser/README.md#settings) · [Setup](markdown_timelog_parser/README.md#setup-python-environment)
-    - [Pixel Matcher](#pixel-matcher): compare two images pixel by pixel (not standardized yet)
+    - [Pixel Matcher](#pixel-matcher): compare frames, measure pixel differences, find an image in an image
+        - [pixel_matcher/README.md](pixel_matcher/README.md): [Folders](pixel_matcher/README.md#folders) · [Usage](pixel_matcher/README.md#usage) · [Settings](pixel_matcher/README.md#settings) · [Setup](pixel_matcher/README.md#setup-python-environment)
     - [Repetitive XML](#repetitive-xml): generate repetitive XML entries from YAML (not standardized yet)
     - [Text Hardcode](#text-hardcode): write numbered command lines (not standardized yet)
     - [Text Recognizer (PDF)](#text-recognizer-pdf): OCR text out of PDFs and images (not standardized yet)
@@ -122,9 +123,9 @@ Tools to automate and format Markdown documents.
 - **Folders**: [markdown_frontmatter_migrator/](markdown_frontmatter_migrator/), [markdown_formatter/](markdown_formatter/), [markdown_timelog_parser/](markdown_timelog_parser/)
 
 ### Pixel Matcher
-Compares two images by analyzing pixel color differences.
+Compares images pixel by pixel in three modes: `scenes` checks rendered frames against reference frames within a colour tolerance, `diff` gives the percentage of differing pixels, `find` locates a small image inside a larger one.
 - **Use case**: A testing tool for 3D rendering projects, to detect unintended scene changes.
-- **Folder**: [pixel_matcher/](pixel_matcher/)
+- **Folder**: [pixel_matcher/](pixel_matcher/README.md)
 - **Last update**: `2024-07-03`
 
 ### Repetitive XML

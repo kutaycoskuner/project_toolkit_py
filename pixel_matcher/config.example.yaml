@@ -1,0 +1,21 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it checks the two scene pairs in example/input/scenes/.
+#
+# Everything that controls the tool goes here, including your own folders and images.
+# It needs no secrets, so it has no .env.
+
+mode: scenes                  # scenes | diff | find (see README.md)
+tolerance: 60                 # per pixel |dR|+|dG|+|dB| (0..765); scenes and find match below it
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   scenes: C:/Users/me/frames  -> exactly that folder (absolute; relative_to is ignored)
+#   scenes: example/input/scenes -> <this tool's folder>/example/input/scenes (relative_to: tool)
+#   scenes: frames              -> <folder you run the command in>/frames (relative_to: cwd)
+relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
+scenes: example/input/scenes  # scenes: folder with scene0_base.png, scene0_test.png, scene1_...
+image_a: example/input/scenes/scene1_base.png   # diff: first image
+image_b: example/input/scenes/scene1_test.png   # diff: second image, same size
+pattern: example/input/find/pattern2.jpg        # find: the small image to look for
+search: example/input/find/find_pattern3.jpg    # find: the image to search in
