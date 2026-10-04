@@ -1,47 +1,258 @@
-# ----------------------------------------------------------------------------------------
-#                notes
-# ----------------------------------------------------------------------------------------
-'''
-Kutay Coskuner, 2025
-This code is licensed under the MIT License. You can use, modify, and distribute it freely.
-However, it is provided "as is," without any warranties or guarantees of any kind.
-For details, visit: https://opensource.org/licenses/MIT
+# -----------------------------------------------------------------------------------------
+#   author          : Kutay Coskuner
+#   ai-contributors : unknown (before 2026-10-04), Claude Opus 5.5 (claude-opus-5-5)
+#   last update     : 2026-10-04
+#   template        : 3.1.0
+#   disclaimer      : Provided as is, without warranty of any kind; use at your own risk.
+#                     Check outputs before relying on them.
+# -----------------------------------------------------------------------------------------
+"""
+Markdown formatter: cleans up text extracted from PDFs (or messy Markdown essays) into
+readable Markdown, keeping front matter and code blocks as they are.
 
-- description
-    This script reads a text file, processes it by removing unwanted line breaks,
-    trims unnecessary spaces, and preserves formatting in markdown structures.
+What clean_text() does to a file:
+    - joins hard-wrapped lines into paragraphs, keeping blank lines between paragraphs
+    - puts a blank line before and after each heading (#, ## ...)
+    - keeps the front matter (--- block) and fenced code blocks unchanged
+    - turns indented text into a ```plaintext block on one line, with a line break
+      before each in-text citation such as "(Smith, 2020)"
 
-- use case
-    - Useful for cleaning text extracted from PDFs or markdown files while keeping important formatting.
+1. Bare run prints this guide and exits (no-args-usage-guide).
+2. The first real run offers to create config.yaml from config.example.yaml
+   (ensure_config); later runs offer to update it when config.example.yaml has changed
+   since (update_config) and warn when its keys differ from the example's
+   (check_config_keys).
+3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
+4. The input is one file, or a folder whose files matching the pattern are all
+   formatted (find_inputs).
+5. Each file is cleaned and written to the output folder (format_file); a dry run
+   writes nothing.
 
-- install
-    - pip install python-dotenv (for using .env values)
+Requires: this folder's .venv (pip install -r requirements.txt). config.yaml is
+gitignored: your input/output paths go there. No .env: the tool needs no secrets.
 
-- todo
-'''
+Inputs -> outputs: a Markdown/text file -> <output>/<output_name> (processed_text.md),
+or a folder -> one cleaned file per input under the same name in <output>. Existing
+files are overwritten; inputs are never changed. As shipped, config.example.yaml
+formats example/input/ into example/output/.
 
-# ----------------------------------------------------------------------------------------
+Run:
+    python main.py --run                         format the example into example/output/
+    python main.py --run --dry-run               list what would be written, write nothing
+    python main.py --input D:/notes/essay.md --output D:/notes/clean
+    python main.py --help                        all flags; see README.md
+
+Gotchas (known limitations, kept as they were):
+    - consecutive list items and table rows are joined like paragraph lines, so lists
+      and tables come out on one line; keep them in a code block or fix them afterwards.
+    - spaces inside a line are kept; only line ends are trimmed.
+    - a plaintext block follows the text before it without a blank line.
+"""
+
+# -----------------------------------------------------------------------------------------
 #                libraries
-# ----------------------------------------------------------------------------------------
-
+# -----------------------------------------------------------------------------------------
+import argparse
+import json
 import os
 import re
+import shutil
 import sys
-from dotenv import load_dotenv
+from pathlib import Path
 
-# ----------------------------------------------------------------------------------------
+import yaml
+
+# -----------------------------------------------------------------------------------------
+#                variables
+# -----------------------------------------------------------------------------------------
+HERE = Path(__file__).resolve().parent
+DEFAULTS = {"input": "example/input", "output": "example/output", "pattern": "*.md",
+            "output_name": "processed_text.md", "relative_to": "tool", "dry_run": False}
+RELATIVE_TO = ("tool", "cwd")
+
+# -----------------------------------------------------------------------------------------
 #                functions
-# ----------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Defines the CLI; flags default to None so unset ones don't override config."""
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser.add_argument("--run", action="store_true", help="run with config defaults")
+    parser.add_argument("--input",
+                        help="file or folder to format (default: example/input/)")
+    parser.add_argument("--output",
+                        help="folder for the results (default: example/output/)")
+    parser.add_argument("--pattern", help='files to format in a folder (default: "*.md")')
+    parser.add_argument("--relative-to", choices=RELATIVE_TO,
+                        help="base for relative paths: this tool's folder or the cwd")
+    parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=None,
+                        help="list what would be written, write nothing")
+    return parser.parse_args(argv)
 
-def clean_text(text):
+
+def ensure_config(dry_run: bool) -> Path | None:
     """
-    - Preserves metadata (--- blocks) exactly as they are, removing unnecessary blank lines.
-    - Ensures two before and one after line breaks after titles (#, ##, etc.).
-    - Wraps indented text inside plaintext block, removes unnecessary indent, line, breaks and white space inside.
-    - Removes unnecessary single line breaks but maintains paragraph separation.
-    - Preserves markdown elements like tables and lists.
-    - Trims excessive spaces.
-    - Adds line breaks before in-text references within plaintext blocks in a second pass.
+    Returns the config file to read, offering to create config.yaml on the first run.
+
+    config.yaml is personal and gitignored, so a fresh checkout only has the committed
+    config.example.yaml. A real run asks before copying it (inform-and-confirm-each-step);
+    on "no", without a terminal, or in a dry run, nothing is written and the example is
+    read for this run only.
+
+    Returns:
+        config.yaml, config.example.yaml (until config.yaml exists), or None when
+        neither exists.
+    """
+    config, example = HERE / "config.yaml", HERE / "config.example.yaml"
+    if config.exists():
+        if example.exists():
+            update_config(config, example, dry_run)
+        return config
+    if not example.exists():
+        return None
+    if not dry_run:
+        try:
+            answer = input("config.yaml not found. "
+                           "Create it from config.example.yaml? (y/n): ")
+        except EOFError:
+            answer = ""
+            print()
+        if answer.strip().lower() == "y":
+            shutil.copyfile(example, config)  # byte-identical, so it diffs cleanly later
+            print(f"Created {config.name}; edit it to use your own data.")
+            return config
+    print("Using config.example.yaml for this run; config.yaml was not created.")
+    return example
+
+
+def merge_config_text(example_text: str, old: dict) -> tuple[str, list[str]]:
+    """
+    Puts the values of an old config into the text of a new example.
+
+    Only top-level `key: value` lines are touched, so comments, order and new keys come
+    from the example. Values are written as JSON, which is valid YAML.
+
+    Returns:
+        (merged text, old keys the example no longer has).
+    """
+    # key : spacing : value : optional comment : line ending
+    line_re = re.compile(r"^([A-Za-z_][\w-]*):([ \t]*)([^#\r\n]*?)"
+                         r"([ \t]*#[^\r\n]*)?(\r?\n)?$")
+    merged, used = [], set()
+    for line in example_text.splitlines(keepends=True):
+        match = line_re.match(line)
+        if match and match.group(1) in old and match.group(3).strip():
+            key, space, value, comment, newline = match.groups()
+            new_value = json.dumps(old[key], ensure_ascii=False).ljust(len(value))
+            line = f"{key}:{space}{new_value}{comment or ''}{newline or ''}"
+            used.add(key)
+        merged.append(line)
+    return "".join(merged), [key for key in old if key not in used]
+
+
+def update_config(config: Path, example: Path, dry_run: bool) -> None:
+    """
+    Offers to update config.yaml when config.example.yaml changed after it was made.
+
+    "Changed after" means the example is newer than config.yaml: a git pull that changes
+    the example counts, editing config.yaml yourself doesn't. Before overwriting, the
+    old config.yaml is saved as config.yaml.bak (gitignored). Without a terminal or in a
+    dry run, nothing is written (inform-and-confirm-each-step).
+    """
+    if example.stat().st_mtime <= config.stat().st_mtime:
+        return
+    print("config.example.yaml has changed since your config.yaml was made.")
+    if dry_run:
+        print("Dry run: config.yaml left as it is.")
+        return
+    try:
+        answer = input("  m = update: new example, keep your values (recommended)\n"
+                       "  r = replace: fresh copy of the example, your values are lost\n"
+                       "  k = keep config.yaml as it is\n"
+                       "Choice (m/r/k): ").strip().lower()
+    except EOFError:
+        print("\nNo terminal to ask on: config.yaml left as it is.")
+        return
+    backup = config.with_name("config.yaml.bak")
+    if answer == "m":
+        with open(example, encoding="utf-8", newline="") as f:
+            example_text = f.read()
+        old = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
+        merged, dropped = merge_config_text(example_text, old)
+        shutil.copyfile(config, backup)
+        with open(config, "w", encoding="utf-8", newline="") as f:
+            f.write(merged)
+        print(f"Updated config.yaml, your values kept (old one: {backup.name}).")
+        if dropped:
+            print(f"No longer in the example, dropped: {', '.join(dropped)}.")
+    elif answer == "r":
+        shutil.copyfile(config, backup)
+        shutil.copyfile(example, config)
+        print(f"Replaced config.yaml with the example (old one: {backup.name}).")
+    else:
+        os.utime(config)  # newer than the example now: asked again after its next change
+        print("Kept config.yaml; you'll be asked again after the next example change.")
+
+
+def check_config_keys(loaded: dict) -> None:
+    """
+    Warns when config.yaml and config.example.yaml have different keys.
+
+    config.yaml is a one-time copy, so it silently misses keys added to the example
+    later (they fall back to DEFAULTS) and keeps keys the tool no longer reads.
+    """
+    example = HERE / "config.example.yaml"
+    if not example.exists():
+        return
+    expected = yaml.safe_load(example.read_text(encoding="utf-8")) or {}
+    missing = [key for key in expected if key not in loaded]
+    unknown = [key for key in loaded if key not in expected]
+    if missing:
+        print(f"config.yaml is missing: {', '.join(missing)} (defaults used). "
+              "Copy them from config.example.yaml.")
+    if unknown:
+        print(f"config.yaml has keys this tool doesn't read: {', '.join(unknown)} "
+              "(ignored).")
+
+
+def load_settings(args: argparse.Namespace) -> dict:
+    """
+    Merges settings: CLI flags > config.yaml > DEFAULTS.
+
+    Paths: an absolute "input"/"output" is used as-is; a relative one is resolved
+    against this tool's folder (relative_to: tool) or the current working directory
+    (relative_to: cwd).
+
+    Returns:
+        Settings with "input"/"output" as absolute Paths.
+
+    Raises:
+        SystemExit: relative_to is neither "tool" nor "cwd".
+    """
+    settings = dict(DEFAULTS)
+    config_file = ensure_config(bool(args.dry_run))
+    if config_file:
+        loaded = yaml.safe_load(config_file.read_text(encoding="utf-8")) or {}
+        if config_file.name == "config.yaml":
+            check_config_keys(loaded)
+        settings.update(loaded)
+    settings.update({k: v for k, v in vars(args).items() if v is not None and k != "run"})
+    if settings["relative_to"] not in RELATIVE_TO:
+        raise SystemExit(f"Invalid relative_to {settings['relative_to']!r} "
+                         "in config.yaml: choose 'tool' or 'cwd'.")
+    base = HERE if settings["relative_to"] == "tool" else Path.cwd()
+    for key in ("input", "output"):
+        path = Path(settings[key])
+        settings[key] = path if path.is_absolute() else base / path
+    return settings
+
+
+def clean_text(text: str) -> str:
+    """
+    Cleans one document; the rules are listed in the module docstring.
+
+    Two passes: the first joins lines, spaces headings, keeps front matter and code
+    blocks, and collects indented text into ```plaintext blocks; the second adds a line
+    break before each "(Author, 2020)" citation inside those blocks.
     """
     lines = text.split("\n")
     cleaned_lines = []
@@ -148,51 +359,65 @@ def clean_text(text):
     return "\n".join(final_lines).strip()
 
 
-def process_file(input_path, output_path):
-    if not os.path.isfile(input_path):
-        print(f"Error: The file '{input_path}' was not found.")
-        return
+def find_inputs(settings: dict) -> list[tuple[Path, Path]]:
+    """
+    Pairs each input file with its output path.
 
-    if not os.path.isdir(output_path):
-        os.makedirs(output_path, exist_ok=True)
+    Returns:
+        [(input file, output file)]: a single input file goes to <output>/<output_name>;
+        files in an input folder keep their names. Empty when nothing matches.
+    """
+    source, output = settings["input"], settings["output"]
+    if source.is_file():
+        return [(source, output / settings["output_name"])]
+    return [(path, output / path.name)
+            for path in sorted(source.glob(settings["pattern"])) if path.is_file()]
 
-    output_file = os.path.join(output_path, "processed_text.md")
 
+def format_file(source: Path, target: Path) -> None:
+    """Cleans source and writes it to target, creating the folder; prints the result."""
     try:
-        with open(input_path, "r", encoding="utf-8") as f:
+        with open(source, "r", encoding="utf-8") as f:
             text = f.read()
-
         cleaned_text = clean_text(text)
-
-        with open(output_file, "w", encoding="utf-8") as f:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, "w", encoding="utf-8") as f:
             f.write(cleaned_text)
+        print(f"Processed text saved to: {target}")
+    except (OSError, UnicodeDecodeError, IndexError) as e:
+        print(f"An error occurred with {source.name}: {e}")
 
-        print(f"Processed text saved to: {output_file}")
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-
-# ----------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
 #                main
-# ----------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
+def main(argv: list[str]) -> int:
+    # 1. No arguments: usage guide only, never work
+    if not argv:
+        print(__doc__.strip())
+        return 0
+    # 2.-3. Settings (config.yaml offered on the first real run)
+    settings = load_settings(parse_args(argv))
+    if not settings["input"].exists():
+        print(f"Error: The file or folder '{settings['input']}' was not found.")
+        return 1
+    # 4. Inputs
+    pairs = find_inputs(settings)
+    if not pairs:
+        print(f"No files matching {settings['pattern']!r} in {settings['input']}.")
+        return 0
+    # 5. Format
+    for source, target in pairs:
+        if settings["dry_run"]:
+            print(f"Would write: {source.name} -> {target}")
+        else:
+            format_file(source, target)
+    if settings["dry_run"]:
+        print("Dry run: nothing written.")
+    return 0
 
-def main():
-    load_dotenv()  # Load environment variables from .env
 
-    input_path = os.getenv("INPUT_PATH") or (sys.argv[1] if len(sys.argv) > 1 else None)
-    output_path = os.getenv("OUTPUT_PATH") or (sys.argv[2] if len(sys.argv) > 2 else None)
-
-    if not input_path or not output_path:
-        print("Error: Missing input file or output folder.")
-        print("Usage: python script.py <input_file> <output_folder>")
-        return
-
-    process_file(input_path, output_path)
-
-# ----------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
 #                start
-# ----------------------------------------------------------------------------------------
-
+# -----------------------------------------------------------------------------------------
 if __name__ == "__main__":
-    main()
+    sys.exit(main(sys.argv[1:]))
