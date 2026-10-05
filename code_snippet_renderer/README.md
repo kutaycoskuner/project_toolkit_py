@@ -8,7 +8,7 @@
 
 <p align="center">
     <img alt="Template" src="https://img.shields.io/badge/template-3.1.1-blue" />
-    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py?path=code_snippet_renderer" />
+    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/python-toolbox?path=code_snippet_renderer" />
 </p>
 
 ------------------------------------------------------------------------------------------
@@ -124,7 +124,7 @@ python main.py --help                            # All flags
 
 ```bash
 # 1. Go to the tool's folder
-cd project_toolkit_py/code_snippet_renderer
+cd python-toolbox/code_snippet_renderer
 
 # 2. Create a virtual environment
 python -m venv .venv

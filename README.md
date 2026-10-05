@@ -1,16 +1,16 @@
 <h1 align="center">
-    Python Toolkit Projects
+    Python Toolbox Project
 </h1>
 
 <h3 align="center">
-    A collection of Python-based toolkit projects for various tasks and utilities.
+    A collection of Python-based toolbox projects for various tasks and utilities.
 </h3>
 
 <p align="center">
     <img alt="Python" src="https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white" />
     <img alt="Project Version" src="https://img.shields.io/badge/Version-0.33.1-blue" />
     <img alt="Project Start" src="https://img.shields.io/badge/project_start-17_Mar_2024-blue" />
-    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py" />
+    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/python-toolbox" />
 </p>
 
 ## Contents
@@ -58,8 +58,8 @@ Each tool is self-contained, with its own virtual environment, settings and READ
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/kutaycoskuner/project_toolkit_py.git
-cd project_toolkit_py
+git clone https://github.com/kutaycoskuner/python-toolbox.git
+cd python-toolbox
 
 # 2. Go to the tool's folder
 cd file_renamer
@@ -157,4 +157,4 @@ Turns PDFs into Markdown text files: each page is read from its text layer, and 
 
 ------------------------------------------------------------------------------------------
 
-For bug reports, feature requests and suggestions, please use the [issue tracker](https://github.com/kutaycoskuner/project_toolkit_py/issues).
+For bug reports, feature requests and suggestions, please use the [issue tracker](https://github.com/kutaycoskuner/python-toolbox/issues).

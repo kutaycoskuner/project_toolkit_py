@@ -8,7 +8,7 @@
 
 <p align="center">
     <img alt="Template" src="https://img.shields.io/badge/template-3.1.1-blue" />
-    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py?path=text_recognition_pdf" />
+    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/python-toolbox?path=text_recognition_pdf" />
 </p>
 
 ------------------------------------------------------------------------------------------
@@ -118,7 +118,7 @@ python main.py --help                            # All flags
 
 ```bash
 # 1. Go to the tool's folder
-cd project_toolkit_py/text_recognition_pdf
+cd python-toolbox/text_recognition_pdf
 
 # 2. Create a virtual environment
 python -m venv .venv

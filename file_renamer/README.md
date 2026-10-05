@@ -8,7 +8,7 @@
 
 <p align="center">
     <img alt="Template" src="https://img.shields.io/badge/template-3.1.1-blue" />
-    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py?path=file_renamer" />
+    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/python-toolbox?path=file_renamer" />
 </p>
 
 ------------------------------------------------------------------------------------------
@@ -129,7 +129,7 @@ python main.py --help                            # All flags
 
 ```bash
 # Go to the tool's folder
-cd project_toolkit_py/file_renamer
+cd python-toolbox/file_renamer
 
 # Create a virtual environment
 python -m venv .venv

@@ -8,7 +8,7 @@
 
 <p align="center">
     <img alt="Template" src="https://img.shields.io/badge/template-3.1.1-blue" />
-    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py?path=markdown_formatter" />
+    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/python-toolbox?path=markdown_formatter" />
 </p>
 
 ------------------------------------------------------------------------------------------
@@ -111,7 +111,7 @@ python main.py --help                            # All flags
 
 ```bash
 # 1. Go to the tool's folder
-cd project_toolkit_py/markdown_formatter
+cd python-toolbox/markdown_formatter
 
 # 2. Create a virtual environment
 python -m venv .venv
