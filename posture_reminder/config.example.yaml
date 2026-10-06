@@ -4,9 +4,16 @@
 # As shipped: outlined white text, no box, centered 160 px above the bottom edge.
 
 message: "Dik dur!"           # text to flash; "\n" (in double quotes) starts a new line
-interval_minutes: 20          # minutes between reminders
-duration_seconds: 5           # seconds each reminder stays visible (shorter than the interval)
+interval_minutes: 8          # minutes between reminders
+duration_seconds: 1           # seconds each reminder stays visible (shorter than the interval)
 count: 0                      # stop after this many reminders; 0 = until Ctrl+C
+start_blinks: 2               # quick blinks right at start, to show it's running; 0 = none
+tray: true                    # tray icon: Active (off/on), Show now, Start with Windows, Quit
+tray_icon: assets/icon-four_cubes.png  # .png/.ico/.jpg path (absolute, or relative to this
+                              # folder; not .svg); "" = built-in drawing; grey when off
+start_with_windows: false     # true = run at every login (Windows); each run creates or
+                              # removes the Startup shortcut to match; the tray item saves
+                              # its choice here
 
 # Position on the primary screen: an anchor, then the distance from it
 #   anchor: center, top, bottom, left, right, top-left, top-right, bottom-left, bottom-right

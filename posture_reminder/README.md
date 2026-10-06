@@ -18,6 +18,7 @@
 ```bash
 posture_reminder/
 ├── .venv/              # Virtual environment (gitignored)
+├── assets/             # Tray icons: icon-four_cubes (shipped; .svelte original, .svg, .png used) and ring_void (alternative)
 ├── config.yaml         # Your settings (gitignored, created on first run)
 ├── config.example.yaml # Default settings with comments (committed)
 ├── main.py             # Entry point; its header docstring explains the steps
@@ -32,9 +33,10 @@ posture_reminder/
 ## Usage
 
 ```bash
-python main.py                  # Usage guide only, does nothing
+python main.py                  # Usage guide and your current settings, does nothing
 python main.py --once           # Flash one reminder right now, to check the look
-python main.py --run            # Remind every 20 minutes for 5 seconds, until Ctrl+C
+python main.py --run            # Remind every interval_minutes (as shipped: 8 min, 1 s), with a tray icon
+python main.py --run --no-tray  # Same without the tray icon; stop with Ctrl+C
 python main.py --run --interval 30 --duration 8 --message "Stand up!"
 python main.py --run --count 6  # Stop after 6 reminders
 python main.py --once --anchor center --offset-x 40 --offset-y 40
@@ -43,7 +45,7 @@ python main.py --once --anchor top-right --offset-x -40 --offset-y -40 --backgro
                                 # Half-faded red box with solid text, 40 px in from the top-right corner
 python main.py --once --font-family Consolas --text-color yellow
 python main.py --list-fonts     # Installed font names, for font_family
-python main.py --help           # All flags
+python main.py --help           # All flags, with the values your config.yaml sets now
 ```
 
 - While it runs
@@ -51,8 +53,13 @@ python main.py --help           # All flags
     - each reminder is borderless and always on top, on the primary screen, at `anchor` + `offset_x` / `offset_y`
     - as shipped: white text in Linux Libertine G with a 2 px black outline, no box, centered 160 px above the bottom edge
     - click it or press `Esc` to hide it early
-    - `Ctrl+C` in the terminal stops the tool
-    - the first reminder comes after one interval, not at start (use `--once` to see one right away)
+    - tray icon (as shipped three hexagon outlines, grey when off; your own image via `tray_icon`; hover shows the next reminder's time), right-click for the menu
+        - **Active**: untick to turn reminders off, tick to turn them on again (blinks once, next reminder one interval later)
+        - **Show now**: flash the reminder now (also: double-click the icon)
+        - **Start with Windows**: tick to run at every login, untick to stop that (Windows only; see below)
+        - **Quit**: stop the tool
+    - `Ctrl+C` in the terminal also stops it
+    - at start the text blinks 2 times (`start_blinks`), so you can see it's running; the first real reminder comes after one interval (use `--once` to see one right away)
 - First run
     - `config.yaml` doesn't exist in a fresh checkout (it's gitignored); the first real run asks whether to create it from `config.example.yaml`
     - on `n` or without a terminal, nothing is created and `config.example.yaml` is used for that run
@@ -62,6 +69,17 @@ python main.py --help           # All flags
         - `r`: fresh copy of the example, your values are lost
         - `k`: keep `config.yaml` as it is; asked again on the next run
     - before `m` or `r`, the old file is saved as `config.yaml.bak` (gitignored)
+- Start at login (Windows)
+    - turn it on either way; both stay in sync
+        - `start_with_windows: true` in `config.yaml`, then run `python main.py --run` once
+        - or run `python main.py --run`, right-click the tray icon, tick **Start with Windows** (saves `start_with_windows: true` in `config.yaml`)
+    - every run makes the shortcut match the setting: creates it when `true` and missing, removes it when `false`
+    - the shortcut is `Posture reminder.lnk` in your Startup folder (Win+R, `shell:startup`); it runs this folder's `.venv\Scripts\pythonw.exe main.py --run`, so no console window, settings from `config.yaml`
+    - at login the text blinks (`start_blinks`) and the tray icon appears; control it from the tray from then on
+    - to stop starting at login: untick **Start with Windows**, or set `start_with_windows: false` (deleting the shortcut by hand doesn't last while the setting is `true`: the next run recreates it)
+    - moved the folder or recreated `.venv`? untick and tick again, so the shortcut points at the new place
+    - without a console there's no one to answer the config prompt: it keeps `config.yaml` as it is and asks on the next run from a terminal
+    - each start is its own copy: starting it by hand while the login copy runs gives two icons and double reminders; quit one from its tray menu
 
 ------------------------------------------------------------------------------------------
 
@@ -75,9 +93,13 @@ python main.py --help           # All flags
 | Setting | Flag | Default | Meaning |
 |---|---|---|---|
 | `message` | `--message` | `Dik dur!` | text to flash; `"\n"` in double quotes starts a new line |
-| `interval_minutes` | `--interval` | `20` | minutes between reminders (decimals allowed) |
-| `duration_seconds` | `--duration` | `5` | seconds each reminder stays visible; shorter than the interval |
+| `interval_minutes` | `--interval` | `8` | minutes between reminders (decimals allowed) |
+| `duration_seconds` | `--duration` | `1` | seconds each reminder stays visible; shorter than the interval |
 | `count` | `--count` | `0` | stop after this many reminders; `0` = until `Ctrl+C` |
+| `start_blinks` | `--start-blinks` | `2` | quick blinks right at start (0.4 s on, 0.3 s off), to show it's running; `0` = none; not counted as reminders |
+| `tray` | `--no-tray` | `true` | tray icon with Active / Show now / Start with Windows / Quit; needs `pystray` and `Pillow` (in `requirements.txt`) |
+| `tray_icon` | — | `assets/icon-four_cubes.png` | tray icon image: a `.png` / `.ico` / `.jpg` path (not `.svg`: Pillow can't read it), absolute or relative to this folder; `""` = built-in drawing (white figure in a green disc); when off, a grey version of it; a missing or unreadable file warns and uses the built-in one; square images look best |
+| `start_with_windows` | — | `false` | run at every login (Windows); each run creates or removes the Startup shortcut to match; the tray item saves its choice here |
 | **Position** | | | |
 | `anchor` | `--anchor` | `bottom` | `center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`: the screen point the text box's matching point sits on |
 | `offset_x` | `--offset-x` | `0` | pixels from the anchor; positive = right, negative = left |

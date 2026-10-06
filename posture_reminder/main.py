@@ -13,8 +13,9 @@ Shows a short message (default "Dik dur!") in borderless, always-on-top windows 
 few seconds, every N minutes, as a reminder to sit or stand straight at the computer.
 As shipped: outlined text only, no box, centered above the bottom edge of the screen.
 Position, font, outline and an optional background box (color and opacity, which never
-fades the text) are settings. Clicking it or pressing Esc hides it early; Ctrl+C in the
-terminal stops the tool.
+fades the text) are settings. Clicking it or pressing Esc hides it early. A tray icon
+turns reminders off and on, shows one now, toggles the start at login (Windows) and
+quits; Ctrl+C in the terminal also stops the tool.
 
 1. Bare run prints this guide and exits (no-args-usage-guide).
 2. The first real run offers to create config.yaml from config.example.yaml
@@ -23,15 +24,18 @@ terminal stops the tool.
 3. Settings come from CLI flags > config.yaml > DEFAULTS (load_settings).
 4. The reminder loop runs until Ctrl+C or until `count` reminders were shown (run).
 
-Requires: this folder's .venv (pip install -r requirements.txt); tkinter, which ships
-with the python.org installers (on Linux: the python3-tk package). config.yaml is
+Requires: this folder's .venv (pip install -r requirements.txt: PyYAML, and pystray +
+Pillow for the tray icon); tkinter, which ships with the python.org installers (on
+Linux: the python3-tk package). config.yaml is
 gitignored and personal; the committed defaults live in config.example.yaml.
 
 Inputs -> outputs: settings -> a reminder window on the primary screen; no files written
 (except config.yaml, after asking).
 
 Run:
-    python main.py --run                     remind every 20 minutes, until Ctrl+C
+    python main.py --run                     remind every interval_minutes, with a tray icon;
+                                             run at every login: start_with_windows: true
+                                             in config.yaml, or tray > Start with Windows
     python main.py --once                    flash once right now, to check the look
     python main.py --run --interval 30 --duration 8 --message "Stand up!"
     python main.py --once --anchor center --offset-x 40 --offset-y 40
@@ -48,22 +52,34 @@ Run:
 # -----------------------------------------------------------------------------------------
 import argparse
 import json
+import os
+import queue
 import re
 import shutil
+import subprocess
 import sys
+import threading
 import tkinter as tk
 import tkinter.font as tkfont
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
+
+if TYPE_CHECKING:  # imported where used, so --no-tray runs without them
+    import pystray
+    from PIL import Image
 
 # -----------------------------------------------------------------------------------------
 #                variables
 # -----------------------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-DEFAULTS = {"message": "Dik dur!", "interval_minutes": 20, "duration_seconds": 5,
-            "count": 0, "anchor": "bottom", "offset_x": 0, "offset_y": 160,
+DEFAULTS = {"message": "Dik dur!", "interval_minutes": 8, "duration_seconds": 1,
+            "count": 0, "start_blinks": 2, "tray": True,
+            "tray_icon": "assets/icon-four_cubes.png",
+            "start_with_windows": False,
+            "anchor": "bottom", "offset_x": 0, "offset_y": 160,
             "font_family": "Linux Libertine G", "font_size": 72, "font_bold": True,
             "font_italic": False, "text_color": "#ffffff", "outline_width": 2,
             "outline_color": "#000000", "background_color": "#c0392b", "padding": 40,
@@ -74,43 +90,101 @@ ANCHORS = ("center", "top", "bottom", "left", "right",
 # text edges blend towards it, so it's near-black: the fringe reads as a shadow.
 TRANSPARENT_KEY = "#010203"
 POLL_MS = 250  # lets Python see Ctrl+C while tkinter's mainloop is waiting
+BLINK_ON_MS, BLINK_OFF_MS = 400, 300  # start_blinks: visible / hidden time per blink
+TRAY_NAME = "Posture reminder"
+# Windows runs every shortcut in this folder at login; tray > Start with Windows
+# creates or deletes this one
+STARTUP_LINK = (Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows"
+                / "Start Menu" / "Programs" / "Startup" / f"{TRAY_NAME}.lnk")
 
 # -----------------------------------------------------------------------------------------
 #                functions
 # -----------------------------------------------------------------------------------------
+def peek_settings() -> tuple[dict, str]:
+    """
+    Reads the current settings for the usage guide and --help: read-only, no prompts.
+
+    Returns:
+        (DEFAULTS merged with config.yaml, or with config.example.yaml until
+        config.yaml exists; the name of the file they came from).
+    """
+    settings = dict(DEFAULTS)
+    for name in ("config.yaml", "config.example.yaml"):
+        path = HERE / name
+        if path.exists():
+            try:
+                settings.update(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
+            except yaml.YAMLError:
+                return settings, f"{name} (unreadable, code defaults shown)"
+            return settings, name
+    return settings, "code defaults"
+
+
+def usage_summary() -> str:
+    """One paragraph with the current settings, appended to the bare-run usage guide."""
+    s, source = peek_settings()
+    return (f"Current settings ({source}):\n"
+            f"    every {s['interval_minutes']} min, shown {s['duration_seconds']} s, "
+            f"{s['start_blinks']} start blinks, tray {'on' if s['tray'] else 'off'}, "
+            f"start with Windows {'on' if s['start_with_windows'] else 'off'}\n"
+            f"    {s['message']!r} at {s['anchor']} {s['offset_x']:+d}/{s['offset_y']:+d} px, "
+            f"{s['font_family']} {s['font_size']} pt, outline {s['outline_width']} px, "
+            f"box opacity {s['background_opacity']}")
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    """Defines the CLI; flags default to None so unset ones don't override config."""
-    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    """
+    Defines the CLI; flags default to None so unset ones don't override config.
+
+    The help texts show each setting's current value from config.yaml (see
+    peek_settings), so --help matches what a run would use.
+    """
+    now, source = peek_settings()
+    now = {k: str(v).replace("%", "%%") for k, v in now.items()}  # argparse formats help
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0],
+                                     epilog=f"'now' values come from {source}.")
     parser.add_argument("--run", action="store_true", help="run with config defaults")
     parser.add_argument("--once", action="store_true",
                         help="flash one reminder right away, then exit")
-    parser.add_argument("--message", help="text to show (default: Dik dur!)")
+    parser.add_argument("--message", help=f"text to show (now: {now['message']})")
     parser.add_argument("--interval", dest="interval_minutes", type=float,
-                        help="minutes between reminders (default: 20)")
+                        help=f"minutes between reminders (now: {now['interval_minutes']})")
     parser.add_argument("--duration", dest="duration_seconds", type=float,
-                        help="seconds each reminder stays visible (default: 5)")
+                        help="seconds each reminder stays visible "
+                             f"(now: {now['duration_seconds']})")
     parser.add_argument("--count", type=int,
-                        help="stop after this many reminders; 0 = until Ctrl+C")
+                        help="stop after this many reminders; 0 = until Ctrl+C "
+                             f"(now: {now['count']})")
+    parser.add_argument("--start-blinks", dest="start_blinks", type=int,
+                        help="quick blinks at start, to show it's running; 0 = none "
+                             f"(now: {now['start_blinks']})")
+    parser.add_argument("--no-tray", dest="tray", action="store_false", default=None,
+                        help=f"no tray icon (stop with Ctrl+C) (now: tray {now['tray']})")
     parser.add_argument("--anchor", type=str.lower, choices=ANCHORS,
-                        help="screen point the text is placed from (default: bottom)")
+                        help="screen point the text is placed from "
+                             f"(now: {now['anchor']})")
     parser.add_argument("--offset-x", dest="offset_x", type=int,
-                        help="pixels from the anchor; positive = right (default: 0)")
+                        help="pixels from the anchor; positive = right "
+                             f"(now: {now['offset_x']})")
     parser.add_argument("--offset-y", dest="offset_y", type=int,
-                        help="pixels from the anchor; positive = up (default: 160)")
+                        help="pixels from the anchor; positive = up "
+                             f"(now: {now['offset_y']})")
     parser.add_argument("--font-family", dest="font_family",
-                        help="font name (default: Linux Libertine G); see --list-fonts")
+                        help=f"font name (now: {now['font_family']}); see --list-fonts")
     parser.add_argument("--font-size", dest="font_size", type=int,
-                        help="text size in points (default: 72)")
+                        help=f"text size in points (now: {now['font_size']})")
     parser.add_argument("--text-color", dest="text_color",
-                        help="color name or #rrggbb (default: #ffffff)")
+                        help=f"color name or #rrggbb (now: {now['text_color']})")
     parser.add_argument("--outline-width", dest="outline_width", type=int,
-                        help="text outline in pixels; 0 = none (default: 2)")
+                        help="text outline in pixels; 0 = none "
+                             f"(now: {now['outline_width']})")
     parser.add_argument("--outline-color", dest="outline_color",
-                        help="color name or #rrggbb (default: #000000)")
+                        help=f"color name or #rrggbb (now: {now['outline_color']})")
     parser.add_argument("--background-color", dest="background_color",
-                        help="box color name or #rrggbb (default: #c0392b)")
+                        help=f"box color name or #rrggbb (now: {now['background_color']})")
     parser.add_argument("--background-opacity", dest="background_opacity", type=float,
-                        help="box only, never the text: 0 = no box, 1 = solid (default: 0)")
+                        help="box only, never the text: 0 = no box, 1 = solid "
+                             f"(now: {now['background_opacity']})")
     parser.add_argument("--list-fonts", action="store_true",
                         help="print the installed font names, then exit")
     return parser.parse_args(argv)
@@ -140,7 +214,7 @@ def ensure_config(dry_run: bool) -> Path | None:
         try:
             answer = input("config.yaml not found. "
                            "Create it from config.example.yaml? (y/n): ")
-        except EOFError:
+        except (EOFError, RuntimeError):  # RuntimeError: no console (pythonw at login)
             answer = ""
             print()
         if answer.strip().lower() == "y":
@@ -226,7 +300,7 @@ def update_config(config: Path, example: Path, dry_run: bool) -> None:
                        "  r = replace: fresh copy of the example, your values are lost\n"
                        "  k = keep config.yaml as it is (asked again on the next run)\n"
                        "Choice (m/r/k): ").strip().lower()
-    except EOFError:
+    except (EOFError, RuntimeError):  # RuntimeError: no console (pythonw at login)
         print("\nNo terminal to ask on: config.yaml left as it is.")
         return
     backup = config.with_name("config.yaml.bak")
@@ -278,6 +352,8 @@ def load_settings(args: argparse.Namespace) -> dict:
         raise SystemExit("duration_seconds must be shorter than the interval.")
     if settings["count"] < 0:
         raise SystemExit("count must be 0 (until Ctrl+C) or more.")
+    if settings["start_blinks"] < 0:
+        raise SystemExit("start_blinks must be 0 (no blinks) or more.")
     if str(settings["background_color"]).lower() == "transparent":
         settings["background_opacity"] = 0  # the older spelling of "no box"
     if not 0 <= settings["background_opacity"] <= 1:
@@ -436,23 +512,172 @@ def flash(windows: list[tk.Toplevel], duration_ms: int, settings: dict) -> None:
     text_window.after(duration_ms, hide, windows)
 
 
+def tray_images(icon_path: str) -> dict[bool, "Image.Image"]:
+    """
+    Returns the tray icon for on (True) and off (False).
+
+    `icon_path` empty: the built-in drawing, a white standing figure in a green disc.
+    Otherwise an image file (.png, .ico, .jpg ...; not .svg, which Pillow can't read),
+    absolute or relative to this tool's folder, e.g. the shipped assets/icon-four_cubes.png;
+    a missing or unreadable file warns and falls back to the built-in one. The
+    off icon is the on icon in grey, darkened and at 60 % opacity, so on and off stay
+    distinguishable with any image, a white one included.
+    """
+    from PIL import Image, ImageDraw
+    on = None
+    if icon_path:
+        path = Path(icon_path)
+        path = path if path.is_absolute() else HERE / path
+        try:
+            on = Image.open(path).convert("RGBA")
+        except (OSError, ValueError) as error:
+            print(f"tray_icon {icon_path!r} can't be used ({error}); "
+                  "using the built-in icon.")
+    if on is None:
+        on = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(on)
+        draw.ellipse((2, 2, 62, 62), fill=(46, 160, 67))
+        draw.ellipse((26, 10, 38, 22), fill="white")      # head
+        draw.rectangle((28, 24, 36, 54), fill="white")    # straight back
+    # off: grey, darkened and faded to 60 %, so even a white icon visibly changes
+    grey = on.convert("L").point(lambda v: v * 6 // 10)
+    alpha = on.getchannel("A").point(lambda a: a * 6 // 10)
+    return {True: on, False: Image.merge("RGBA", (grey, grey, grey, alpha))}
+
+
+def set_startup(enable: bool) -> None:
+    """
+    Creates or deletes the Startup-folder shortcut that runs this tool at login.
+
+    The shortcut runs this venv's pythonw.exe (no console window) with
+    `main.py --run` in this folder, so settings come from config.yaml. Windows only;
+    called from the tray menu, so the user's click is the go-ahead for the write.
+    """
+    if not enable:
+        STARTUP_LINK.unlink(missing_ok=True)
+        print(f"start at login: off (removed {STARTUP_LINK.name})")
+        return
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    script = ("$l = (New-Object -ComObject WScript.Shell).CreateShortcut($env:LINK); "
+              "$l.TargetPath = $env:TARGET; $l.Arguments = 'main.py --run'; "
+              "$l.WorkingDirectory = $env:FOLDER; $l.Save()")
+    # paths go in as environment variables, so quotes or spaces in them can't break it
+    env = dict(os.environ, LINK=str(STARTUP_LINK), TARGET=str(pythonw), FOLDER=str(HERE))
+    result = subprocess.run(["powershell", "-NoProfile", "-Command", script], env=env,
+                            capture_output=True, text=True, check=False,
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if result.returncode or not STARTUP_LINK.exists():
+        print(f"start at login: could not create the shortcut: {result.stderr.strip()}")
+    else:
+        print(f"start at login: on ({STARTUP_LINK})")
+
+
+def sync_startup(enabled: bool) -> None:
+    """
+    Makes the Startup shortcut match start_with_windows: creates or removes it.
+
+    config.yaml is the source of truth, so a run started any way (terminal, login)
+    brings the shortcut in line with it. Not Windows: a true value is reported, not
+    silently ignored.
+    """
+    if sys.platform != "win32":
+        if enabled:
+            print("start_with_windows only works on Windows; ignored.")
+        return
+    if enabled != STARTUP_LINK.exists():
+        set_startup(enabled)
+
+
+def save_setting(key: str, value: bool | float | str) -> bool:
+    """
+    Writes one top-level setting into config.yaml, keeping its comments and layout.
+
+    Replaces the value on the `key:` line (padded to the old width, so a trailing
+    comment stays aligned), or appends `key: value` when the key isn't there yet.
+
+    Returns:
+        False when there's no config.yaml to write to (the example is never changed).
+    """
+    config = HERE / "config.yaml"
+    if not config.exists():
+        return False
+    with open(config, encoding="utf-8", newline="") as f:
+        text = f.read()
+    new_value = json.dumps(value, ensure_ascii=False)  # valid YAML: true, 3, "text"
+    match = re.search(rf"^{re.escape(key)}:[ \t]*([^#\r\n]*?)[ \t]*(?:#[^\r\n]*)?\r?$",
+                      text, re.MULTILINE)
+    if match:
+        old = match.group(1)
+        text = text[:match.start(1)] + new_value.ljust(len(old)) + text[match.end(1):]
+    else:
+        newline = "\r\n" if "\r\n" in text else "\n"
+        text += ("" if text.endswith(("\n", "\r\n")) or not text else newline)
+        text += f"{key}: {new_value}{newline}"
+    with open(config, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+    return True
+
+
+def start_tray(commands: queue.Queue, state: dict,
+               icon_path: str) -> tuple["pystray.Icon", dict[bool, "Image.Image"]]:
+    """
+    Shows the tray icon and its menu in a background thread.
+
+    Menu clicks only put a command on the queue; run()'s poll handles it in tkinter's
+    thread, since tkinter may only be used from the thread that created it. The
+    checkmarks read `state` (Active) and the shortcut's existence (Start with Windows).
+
+    Returns:
+        (the icon, its on/off images from tray_images(icon_path)).
+
+    Raises:
+        SystemExit: pystray or Pillow isn't installed.
+    """
+    try:
+        import pystray
+    except ImportError:
+        raise SystemExit("The tray icon needs pystray and Pillow: "
+                         "pip install -r requirements.txt, or run with --no-tray.")
+    images = tray_images(icon_path)
+    item = pystray.MenuItem
+    menu = pystray.Menu(
+        item("Active", lambda: commands.put("toggle"),
+             checked=lambda _i: state["active"]),
+        item("Show now", lambda: commands.put("show"), default=True),  # = double-click
+        item("Start with Windows", lambda: commands.put("startup"),
+             checked=lambda _i: STARTUP_LINK.exists(),
+             visible=sys.platform == "win32"),
+        pystray.Menu.SEPARATOR,
+        item("Quit", lambda: commands.put("quit")))
+    icon = pystray.Icon("posture_reminder", images[True], TRAY_NAME, menu)
+    threading.Thread(target=icon.run, daemon=True).start()
+    return icon, images
+
+
 def run(settings: dict) -> None:
     """
     Shows the reminder every interval_minutes, for duration_seconds each time.
 
-    Stops after `count` reminders (0 = never) or on Ctrl+C. With --once the single
-    reminder is shown right away instead of after the first interval.
+    Stops after `count` reminders (0 = never), on Ctrl+C or on tray > Quit. With --once
+    the single reminder is shown right away instead of after the first interval.
+    Otherwise the text first blinks start_blinks times, so a start at login is visibly
+    working (the blinks don't count as reminders), and with `tray` a tray icon turns
+    reminders off and on, shows one now, or toggles the start at login.
     """
     interval_ms = round(settings["interval_minutes"] * 60_000)
     duration_ms = round(settings["duration_seconds"] * 1000)
     count = settings["count"]
     root, windows = build_window(settings)
     shown = 0
+    # Shared with the tray thread, which only reads it; commands go the other way
+    state = {"active": True, "job": None, "next": datetime.now()}
+    commands: queue.Queue[str] = queue.Queue()
+    tray, images = None, {}
 
     def next_reminder(delay_ms: int) -> None:
-        at = datetime.now() + timedelta(milliseconds=delay_ms)
-        print(f"next reminder at {at:%H:%M:%S}")
-        root.after(delay_ms, remind)
+        state["next"] = datetime.now() + timedelta(milliseconds=delay_ms)
+        print(f"next reminder at {state['next']:%H:%M:%S}")
+        state["job"] = root.after(delay_ms, remind)
 
     def remind() -> None:
         nonlocal shown
@@ -464,8 +689,48 @@ def run(settings: dict) -> None:
             root.after(duration_ms + 100, root.quit)  # let the last one finish showing
             return
         next_reminder(interval_ms)
+        update_tray()
+
+    def blink(times: int) -> None:
+        for i in range(times):
+            root.after(i * (BLINK_ON_MS + BLINK_OFF_MS), flash, windows, BLINK_ON_MS,
+                       settings)
+
+    def update_tray() -> None:
+        if tray:
+            tray.icon = images[state["active"]]
+            tray.title = (f"{TRAY_NAME}: next at {state['next']:%H:%M}" if state["active"]
+                          else f"{TRAY_NAME}: off")
+            tray.update_menu()
+
+    def handle(command: str) -> None:
+        """Runs a tray menu command in tkinter's thread (see poll)."""
+        if command == "toggle" and state["active"]:
+            root.after_cancel(state["job"])
+            state["active"] = False
+            print(f"[{datetime.now():%H:%M:%S}] off (tray)")
+        elif command == "toggle":
+            state["active"] = True
+            print(f"[{datetime.now():%H:%M:%S}] on (tray)")
+            blink(1)
+            next_reminder(interval_ms)
+        elif command == "show":
+            flash(windows, duration_ms, settings)
+        elif command == "startup":
+            enabled = not STARTUP_LINK.exists()
+            set_startup(enabled)
+            if save_setting("start_with_windows", enabled):
+                print(f"saved start_with_windows: {str(enabled).lower()} in config.yaml")
+            else:
+                print("No config.yaml to save start_with_windows in: the next run "
+                      "follows config.example.yaml (create config.yaml to keep it).")
+        elif command == "quit":
+            root.quit()
+        update_tray()
 
     def poll() -> None:
+        while not commands.empty():
+            handle(commands.get_nowait())
         root.after(POLL_MS, poll)
 
     print(f"message : {settings['message']}")
@@ -475,15 +740,23 @@ def run(settings: dict) -> None:
     else:
         print(f"every   : {settings['interval_minutes']} min, "
               f"shown for {settings['duration_seconds']} s")
-        print("stop    : Ctrl+C" + (f" (or after {count} reminder"
-                                     f"{'s' if count > 1 else ''})" if count else ""))
+        print("stop    : Ctrl+C" + (", or tray icon > Quit" if settings["tray"] else "")
+              + (f" (or after {count} reminder{'s' if count > 1 else ''})"
+                 if count else ""))
+        sync_startup(settings["start_with_windows"])
+        blink(settings["start_blinks"])
         next_reminder(interval_ms)
+        if settings["tray"]:
+            tray, images = start_tray(commands, state, settings["tray_icon"])
+            update_tray()
     poll()
     try:
         root.mainloop()
     except KeyboardInterrupt:
         print("\nstopped")
     finally:
+        if tray:
+            tray.stop()
         root.destroy()
 
 # -----------------------------------------------------------------------------------------
@@ -493,6 +766,8 @@ def main(argv: list[str]) -> int:
     # 1. No arguments: usage guide only, never work (no-args-usage-guide)
     if not argv:
         print(__doc__.strip())
+        print()
+        print(usage_summary())  # the values a run would use, from config.yaml
         return 0
     args = parse_args(argv)
     if args.list_fonts:  # a lookup, not a run: no config prompt
