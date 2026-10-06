@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-    <img alt="Template" src="https://img.shields.io/badge/template-3.1.1-blue" />
+    <img alt="Template" src="https://img.shields.io/badge/template-3.2.0-blue" />
     <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/python-toolbox?path=markdown_frontmatter_migrator" />
 </p>
 
@@ -68,14 +68,13 @@ python main.py --help                            # All flags
 - Example data
     - as shipped, the tool migrates `example/input/` into `example/output/`: one post with every renamed field, one in a subfolder with list tags and the apostrophe case, one without front matter; a `.txt` would be skipped
     - to migrate your own files, point `input` / `output` in `config.yaml` (or flags) elsewhere, and set `template_fields` / `keep_from_old` to your schema
-- After an update (e.g. a `git pull` that changes `config.example.yaml`)
-    - the next run notices the example is newer than your `config.yaml` and asks
+- After an update (e.g. a `git pull` that adds or removes settings in `config.example.yaml`)
+    - every run compares the settings (top-level keys) in your `config.yaml` with the example's; when they differ, it lists missing keys (defaults used) and unknown keys (ignored) and asks
         - `m`: new example, your values kept, including your `template_fields` and `keep_from_old` blocks; fields the example added inside them are listed for you to copy
         - `r`: fresh copy of the example, your values are lost
-        - `k`: keep `config.yaml` as it is; asked again only after the next example change
+        - `k`: keep `config.yaml` as it is; asked again on the next run
     - before `m` or `r`, the old file is saved as `config.yaml.bak` (gitignored)
     - without a terminal, or with `--dry-run`, nothing is written
-    - every run also warns when `config.yaml` lacks keys the example has (they use defaults) or has keys the tool doesn't read
 - Paths (`input`, `output`)
     - what you type decides absolute vs. relative; `relative_to` only matters for relative paths
 

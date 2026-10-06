@@ -8,7 +8,7 @@
 
 <p align="center">
     <img alt="Python" src="https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white" />
-    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.33.1-blue" />
+    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.38-blue" />
     <img alt="Project Start" src="https://img.shields.io/badge/project_start-17_Mar_2024-blue" />
     <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/python-toolbox" />
 </p>
@@ -33,6 +33,8 @@
         - [markdown_timelog_parser/README.md](markdown_timelog_parser/README.md): [Folders](markdown_timelog_parser/README.md#folders) · [Usage](markdown_timelog_parser/README.md#usage) · [Settings](markdown_timelog_parser/README.md#settings) · [Setup](markdown_timelog_parser/README.md#setup-python-environment)
     - [Pixel Matcher](#pixel-matcher): compare frames, measure pixel differences, find an image in an image
         - [pixel_matcher/README.md](pixel_matcher/README.md): [Folders](pixel_matcher/README.md#folders) · [Usage](pixel_matcher/README.md#usage) · [Settings](pixel_matcher/README.md#settings) · [Setup](pixel_matcher/README.md#setup-python-environment)
+    - [Posture Reminder](#posture-reminder): flash a reminder text on the screen at an interval
+        - [posture_reminder/README.md](posture_reminder/README.md): [Folders](posture_reminder/README.md#folders) · [Usage](posture_reminder/README.md#usage) · [Settings](posture_reminder/README.md#settings) · [Setup](posture_reminder/README.md#setup-python-environment)
     - [Repetitive Text](#repetitive-text): write numbered command lines from a template
         - [repetitive_text/README.md](repetitive_text/README.md): [Folders](repetitive_text/README.md#folders) · [Usage](repetitive_text/README.md#usage) · [Settings](repetitive_text/README.md#settings) · [Setup](repetitive_text/README.md#setup-python-environment)
     - [Repetitive XML](#repetitive-xml): generate repetitive XML elements from a pattern
@@ -136,6 +138,12 @@ Compares images pixel by pixel in three modes: `scenes` checks rendered frames a
 - **Use case**: A testing tool for 3D rendering projects, to detect unintended scene changes.
 - **Folder**: [pixel_matcher/](pixel_matcher/README.md)
 - **Last update**: `2026-10-04`
+
+### Posture Reminder
+Flashes a short text ("Dik dur!") on top of everything for a few seconds, every N minutes, until `Ctrl+C`; as shipped, white outlined text without a box near the bottom of the screen. Message, timing, position (anchor + offset), font, outline and an optional background box are set in `config.yaml` or with flags.
+- **Use case**: A reminder to sit or stand straight during long sessions at the computer.
+- **Folder**: [posture_reminder/](posture_reminder/README.md)
+- **Last update**: `2026-10-06`
 
 ### Repetitive Text
 Writes one line per number from `start` to `end` (counting by `step`) into a text file, from a line template such as `pushlist spellbook_scrolls {i}`; all set in `config.yaml` or with flags.

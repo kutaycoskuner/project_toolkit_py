@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-    <img alt="Template" src="https://img.shields.io/badge/template-3.1.1-blue" />
+    <img alt="Template" src="https://img.shields.io/badge/template-3.2.0-blue" />
     <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/python-toolbox?path=text_recognition_pdf" />
 </p>
 
@@ -63,14 +63,13 @@ python main.py --help                            # All flags
     - `laser_cutter_manual.pdf`: 3 pages, all with a text layer: no OCR needed
     - `laser_cutter_manual_scan.pdf`: the first page as a scanned image: read with OCR
     - to read your own PDFs, point `input` / `output` in `config.yaml` (or flags) elsewhere
-- After an update (e.g. a `git pull` that changes `config.example.yaml`)
-    - the next run notices the example is newer than your `config.yaml` and asks
+- After an update (e.g. a `git pull` that adds or removes settings in `config.example.yaml`)
+    - every run compares the settings (top-level keys) in your `config.yaml` with the example's; when they differ, it lists missing keys (defaults used) and unknown keys (ignored) and asks
         - `m`: new example, your values kept (new keys and comments come from the example; keys it dropped are listed)
         - `r`: fresh copy of the example, your values are lost
-        - `k`: keep `config.yaml` as it is; asked again only after the next example change
+        - `k`: keep `config.yaml` as it is; asked again on the next run
     - before `m` or `r`, the old file is saved as `config.yaml.bak` (gitignored)
     - without a terminal, or with `--dry-run`, nothing is written
-    - every run also warns when `config.yaml` lacks keys the example has (they use defaults) or has keys the tool doesn't read
 - Paths (`input`, `output`, `tesseract_cmd`)
     - what you type decides absolute vs. relative; `relative_to` only matters for relative paths
 
