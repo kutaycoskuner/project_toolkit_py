@@ -1,0 +1,13 @@
+# Example mapping: one `id: name` per line. IDs and names are read as plain text, so
+# 0x0A3C stays 0x0A3C (no quotes needed). IDs match file names ignoring case.
+# Names become file names: "/" (or "\") sorts the file into folders; otherwise no
+# <>:"|?*, and no part ending in a dot or space.
+
+ignore_folders: [backup]      # folder names skipped in both directions (any depth);
+                              # a reserved key, not an ID
+
+0x0A3C: backpack
+0x0A3D: shield              # the file is spelled 0x0a3d.png; it still matches
+0x0805: health-bar          # renamed: healthbar-0x0805.png gets the new name
+0x00D4: gump/button         # "/" makes folders: gump/button-0x00D4.png
+# 0x0B00 is left out on purpose: its file is listed as "not in the mapping"

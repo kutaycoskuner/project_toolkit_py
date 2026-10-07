@@ -25,6 +25,8 @@
         - [file_renamer/README.md](file_renamer/README.md): [Folders](file_renamer/README.md#folders) · [Usage](file_renamer/README.md#usage) · [Settings](file_renamer/README.md#settings) · [Setup](file_renamer/README.md#setup-python-environment)
     - [Graph Visualizer](#graph-visualizer): plot a timing cycle for animations
         - [graph_visualizer/README.md](graph_visualizer/README.md): [Folders](graph_visualizer/README.md#folders) · [Usage](graph_visualizer/README.md#usage) · [Settings](graph_visualizer/README.md#settings) · [Setup](graph_visualizer/README.md#setup-python-environment)
+    - [ID-Name Mapper](#id-name-mapper): swap file names between IDs and readable names, from a mapping file
+        - [id_name_mapper/README.md](id_name_mapper/README.md): [Folders](id_name_mapper/README.md#folders) · [Usage](id_name_mapper/README.md#usage) · [Settings](id_name_mapper/README.md#settings) · [Setup](id_name_mapper/README.md#setup-python-environment)
     - [Image Resizer](#image-resizer): resize every image in a folder to one size
         - [image_resizer/README.md](image_resizer/README.md): [Folders](image_resizer/README.md#folders) · [Usage](image_resizer/README.md#usage) · [Settings](image_resizer/README.md#settings) · [Setup](image_resizer/README.md#setup-python-environment)
     - [Markdown Tools](#markdown-tools): front matter migrator, PDF-text formatter, time-log parser
@@ -118,6 +120,12 @@ Plays a wait → expand → wait → collapse value cycle in real time and plots
 - **Use case**: Finding the right timing function for animations.
 - **Folder**: [graph_visualizer/](graph_visualizer/README.md)
 - **Last update**: `2026-10-04`
+
+### ID-Name Mapper
+Swaps file names between an ID and a readable name: from a mapping file of `id: name` lines, `to_name` renames `0x0A3C.png` to `backpack-0x0A3C.png` (a `/` in a name sorts it into folders: `gump/button-0x00D4.png`) and `to_id` renames it back to the root folder; IDs match ignoring case, collisions and unmapped IDs are reported, in place or as renamed copies, with a preview and a y/n confirmation.
+- **Use case**: Working with folders whose file names must stay IDs for a program to find them, while you need to tell the files apart.
+- **Folder**: [id_name_mapper/](id_name_mapper/README.md)
+- **Last update**: `2026-10-07`
 
 ### Image Resizer
 Resizes every image in a folder to one fixed size (default 1024×1024, set in `config.yaml` or with `--size`) into an output folder; the originals are never changed.

@@ -1,0 +1,24 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# As shipped it processes the bundled example: example/input/ with example/mapping.yaml.
+#
+# Everything that controls the tool goes here. It needs no secrets, so it has no .env;
+# if it ever does, they go in .env (see the template), never in this file.
+
+# Paths: what you type decides absolute vs. relative; relative_to only matters for
+# relative paths. Examples:
+#   input_dir: C:/Users/me/images -> exactly that folder (absolute; relative_to is ignored)
+#   input_dir: example/input      -> <this tool's folder>/example/input   (relative_to: tool)
+#   input_dir: images             -> <folder you run the command in>/images (relative_to: cwd)
+relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
+input_dir: example/input      # folder whose files are renamed; your path goes in config.yaml
+output_dir: example/output    # renamed copies go here, originals stay unchanged;
+                              # empty ("") or the input_dir itself = rename in place
+mapping: example/mapping.yaml # `id: name` per line + ignore_folders; to_id reads it only
+                              # for ignore_folders (and runs without it)
+
+direction: to_name            # to_name: 0x0A3C.png -> backpack-0x0A3C.png
+                              # to_id:   backpack-0x0A3C.png -> 0x0A3C.png
+separator: "-"                # between name and ID; a name may contain it, an ID not
+pattern: "*"                  # glob pattern of files inside the folder, e.g. "*.png"
+dry_run: false                # true = preview only, change nothing
