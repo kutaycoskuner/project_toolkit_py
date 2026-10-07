@@ -14,8 +14,10 @@ tray_icon: assets/icon-four_cubes.png  # .png/.ico/.jpg path (absolute, or relat
 start_with_windows: false     # true = run at every login (Windows); each run creates or
                               # removes the Startup shortcut to match; the tray item saves
                               # its choice here
+all_screens: true             # true = show on every screen (Windows); false = primary
+                              # screen only (also: --primary-only)
 
-# Position on the primary screen: an anchor, then the distance from it
+# Position on each screen: an anchor, then the distance from it
 #   anchor: center, top, bottom, left, right, top-left, top-right, bottom-left, bottom-right
 #     the text box's matching point sits on it (center on center, top-left corner on the
 #     screen's top-left corner, ...)

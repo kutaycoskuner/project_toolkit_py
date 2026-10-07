@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------------------
 #   author          : Kutay Coskuner
 #   ai-contributors : Claude Opus 5.5 (claude-opus-5-5)
-#   last update     : 2026-10-06
+#   last update     : 2026-10-07
 #   template        : 3.2.0
 #   disclaimer      : Provided as is, without warranty of any kind; use at your own risk.
 #                     Check outputs before relying on them.
@@ -11,7 +11,8 @@ Posture reminder: flashes a text on the screen at a fixed interval.
 
 Shows a short message (default "Dik dur!") in borderless, always-on-top windows for a
 few seconds, every N minutes, as a reminder to sit or stand straight at the computer.
-As shipped: outlined text only, no box, centered above the bottom edge of the screen.
+As shipped: outlined text only, no box, centered above the bottom edge of every screen
+(all_screens; Windows, other systems use the primary screen).
 Position, font, outline and an optional background box (color and opacity, which never
 fades the text) are settings. Clicking it or pressing Esc hides it early. A tray icon
 turns reminders off and on, shows one now, toggles the start at login (Windows) and
@@ -29,7 +30,7 @@ Pillow for the tray icon); tkinter, which ships with the python.org installers (
 Linux: the python3-tk package). config.yaml is
 gitignored and personal; the committed defaults live in config.example.yaml.
 
-Inputs -> outputs: settings -> a reminder window on the primary screen; no files written
+Inputs -> outputs: settings -> a reminder on every screen (or the primary one); no files written
 (except config.yaml, after asking).
 
 Run:
@@ -38,6 +39,7 @@ Run:
                                              in config.yaml, or tray > Start with Windows
     python main.py --once                    flash once right now, to check the look
     python main.py --run --interval 30 --duration 8 --message "Stand up!"
+    python main.py --once --primary-only     only on the primary screen, not on every one
     python main.py --once --anchor center --offset-x 40 --offset-y 40
                                              40 px right of and 40 px above the center
     python main.py --once --anchor top-right --offset-x -40 --offset-y -40
@@ -78,7 +80,7 @@ HERE = Path(__file__).resolve().parent
 DEFAULTS = {"message": "Dik dur!", "interval_minutes": 8, "duration_seconds": 1,
             "count": 0, "start_blinks": 2, "tray": True,
             "tray_icon": "assets/icon-four_cubes.png",
-            "start_with_windows": False,
+            "start_with_windows": False, "all_screens": True,
             "anchor": "bottom", "offset_x": 0, "offset_y": 160,
             "font_family": "Linux Libertine G", "font_size": 72, "font_bold": True,
             "font_italic": False, "text_color": "#ffffff", "outline_width": 2,
@@ -160,6 +162,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                              f"(now: {now['start_blinks']})")
     parser.add_argument("--no-tray", dest="tray", action="store_false", default=None,
                         help=f"no tray icon (stop with Ctrl+C) (now: tray {now['tray']})")
+    parser.add_argument("--primary-only", dest="all_screens", action="store_false",
+                        default=None, help="show on the primary screen only, not on "
+                                           f"every one (now: all_screens {now['all_screens']})")
     parser.add_argument("--anchor", type=str.lower, choices=ANCHORS,
                         help="screen point the text is placed from "
                              f"(now: {now['anchor']})")
@@ -405,29 +410,51 @@ def see_through_color(window: tk.Toplevel, box_color: str | None) -> str | None:
 
 
 def hide(windows: list[tk.Toplevel]) -> None:
-    """Hides the reminder (all its windows)."""
+    """Hides the reminder (all its windows, on every screen)."""
     for window in windows:
         window.withdraw()
 
 
-def build_window(settings: dict) -> tuple[tk.Tk, list[tk.Toplevel]]:
+def build_reminder(settings: dict) -> tuple[tk.Tk, dict]:
     """
-    Creates the hidden reminder: a background box with a solid text window on top.
+    Creates the hidden root and the reminder's font; the windows come per screen.
+
+    flash() adds a window set (add_window_set) for each screen it needs, so a screen
+    plugged in while the tool runs gets one at the next reminder.
+
+    Returns:
+        (the hidden root that runs the event loop, the reminder: settings, font,
+        "sets" = one window list per screen, "all" = every window, for hide()).
+    """
+    root = tk.Tk()
+    root.withdraw()
+    if settings["font_family"] not in tkfont.families(root):
+        print(f"Font {settings['font_family']!r} not found; tkinter uses its default "
+              "font instead. See: python main.py --list-fonts")
+    font = tkfont.Font(root=root, family=settings["font_family"],
+                       size=settings["font_size"],
+                       weight="bold" if settings["font_bold"] else "normal",
+                       slant="italic" if settings["font_italic"] else "roman")
+    return root, {"root": root, "settings": settings, "font": font, "sets": [], "all": []}
+
+
+def add_window_set(reminder: dict) -> list[tk.Toplevel]:
+    """
+    Creates the hidden windows for one screen: a background box with a text window on top.
 
     tkinter's opacity applies to a whole window, so fading only the background takes
     two borderless, always-on-top windows of the same size and place: the box, a plain
     color at background_opacity (none at 0), and the text window, solid, with its empty
     space see-through. The text is drawn on a canvas: first the outline (the text
-    repeated at every offset within outline_width), then the text. Clicking either
-    window or pressing Esc hides both early; flash() places and shows them. On X11,
-    which can't make part of a window see-through, one solid box is used (with a
-    warning rather than a silent fallback).
+    repeated at every offset within outline_width), then the text. Clicking any window
+    or pressing Esc hides the reminder on every screen; flash() places and shows them.
+    On X11, which can't make part of a window see-through, one solid box is used (with
+    a warning rather than a silent fallback).
 
     Returns:
-        (the hidden root that runs the event loop, the windows to show, box first).
+        The new set's windows, box first; also added to reminder["sets"] and ["all"].
     """
-    root = tk.Tk()
-    root.withdraw()
+    root, settings, font = reminder["root"], reminder["settings"], reminder["font"]
     opacity = settings["background_opacity"]
     box_color = settings["background_color"] if opacity > 0 else None
     windows: list[tk.Toplevel] = []
@@ -440,21 +467,15 @@ def build_window(settings: dict) -> tuple[tk.Tk, list[tk.Toplevel]]:
     text_window = windows[-1]
     background = see_through_color(text_window, box_color)
     if background is None:
-        print("A see-through background isn't supported on this system (X11); "
-              "using a solid box instead.")
+        if not reminder["sets"]:  # once, not once per screen
+            print("A see-through background isn't supported on this system (X11); "
+                  "using a solid box instead.")
         background = box_color or "#000000"
         if box_color:
             windows.pop(0).destroy()
     elif box_color:
         windows[0].attributes("-alpha", opacity)
         windows[0].configure(bg=box_color)
-    if settings["font_family"] not in tkfont.families(root):
-        print(f"Font {settings['font_family']!r} not found; tkinter uses its default "
-              "font instead. See: python main.py --list-fonts")
-    font = tkfont.Font(root=root, family=settings["font_family"],
-                       size=settings["font_size"],
-                       weight="bold" if settings["font_bold"] else "normal",
-                       slant="italic" if settings["font_italic"] else "roman")
     message, outline = str(settings["message"]), settings["outline_width"]
     lines = message.splitlines() or [""]
     pad = settings["padding"] if box_color else 0
@@ -471,16 +492,47 @@ def build_window(settings: dict) -> tuple[tk.Tk, list[tk.Toplevel]]:
                 canvas.create_text(width / 2 + dx, height / 2 + dy,
                                    fill=settings["outline_color"], **text)
     canvas.create_text(width / 2, height / 2, fill=settings["text_color"], **text)
+    every = reminder["all"]  # grows with each new screen, so a click hides them all
     for widget in (*windows, canvas):
-        widget.bind("<Button-1>", lambda _e: hide(windows))
-    text_window.bind("<Escape>", lambda _e: hide(windows))
-    return root, windows
+        widget.bind("<Button-1>", lambda _e: hide(every))
+    text_window.bind("<Escape>", lambda _e: hide(every))
+    reminder["sets"].append(windows)
+    every.extend(windows)
+    return windows
+
+
+def screen_rects(root: tk.Tk, all_screens: bool) -> list[tuple[int, int, int, int]]:
+    """
+    Returns the screens to show the reminder on, as (left, top, width, height).
+
+    With all_screens on Windows: every monitor, asked anew each time, so plugging one
+    in or out while the tool runs is picked up. Otherwise, or when Windows can't list
+    them (reported), only the primary screen, which starts at (0, 0).
+    """
+    primary = [(0, 0, root.winfo_screenwidth(), root.winfo_screenheight())]
+    if not all_screens or sys.platform != "win32":
+        return primary
+    import ctypes
+    from ctypes import wintypes
+    rects: list[tuple[int, int, int, int]] = []
+
+    def found(_monitor, _dc, rect, _data) -> int:
+        r = rect.contents
+        rects.append((r.left, r.top, r.right - r.left, r.bottom - r.top))
+        return 1  # keep going
+
+    callback = ctypes.WINFUNCTYPE(ctypes.c_int, wintypes.HMONITOR, wintypes.HDC,
+                                  ctypes.POINTER(wintypes.RECT), wintypes.LPARAM)(found)
+    if not ctypes.windll.user32.EnumDisplayMonitors(None, None, callback, 0) or not rects:
+        print("Could not list the screens; showing on the primary screen only.")
+        return primary
+    return rects
 
 
 def window_origin(anchor: str, offset: tuple[int, int], size: tuple[int, int],
                   screen: tuple[int, int]) -> tuple[int, int]:
     """
-    Returns the window's top-left corner on the primary screen.
+    Returns the window's top-left corner, relative to its screen's top-left corner.
 
     The anchor is a point on the screen, and the window's matching point sits on it:
     "center" puts the window's center on the screen's center, "top-left" its top-left
@@ -496,20 +548,31 @@ def window_origin(anchor: str, offset: tuple[int, int], size: tuple[int, int],
     return x + offset_x, y - offset_y  # screen y grows downwards, offset_y upwards
 
 
-def flash(windows: list[tk.Toplevel], duration_ms: int, settings: dict) -> None:
-    """Shows the reminder at its anchor and offset, then hides it after duration_ms."""
-    text_window = windows[-1]
-    text_window.update_idletasks()
-    width, height = text_window.winfo_reqwidth(), text_window.winfo_reqheight()
-    x, y = window_origin(settings["anchor"], (settings["offset_x"], settings["offset_y"]),
-                         (width, height),
-                         (text_window.winfo_screenwidth(), text_window.winfo_screenheight()))
-    for window in windows:  # box first, so the text window ends up on top
-        window.geometry(f"{width}x{height}{x:+d}{y:+d}")  # e.g. +-40: negative x is valid
-        window.deiconify()
-        window.lift()
-    text_window.focus_force()  # so Esc reaches it
-    text_window.after(duration_ms, hide, windows)
+def flash(reminder: dict, duration_ms: int) -> None:
+    """
+    Shows the reminder on each screen at its anchor and offset; hides it after duration_ms.
+
+    A screen without a window set yet gets one; sets for screens that are gone stay
+    hidden.
+    """
+    settings = reminder["settings"]
+    rects = screen_rects(reminder["root"], settings["all_screens"])
+    while len(reminder["sets"]) < len(rects):
+        add_window_set(reminder)
+    for windows, (left, top, screen_w, screen_h) in zip(reminder["sets"], rects):
+        text_window = windows[-1]
+        text_window.update_idletasks()
+        width, height = text_window.winfo_reqwidth(), text_window.winfo_reqheight()
+        x, y = window_origin(settings["anchor"],
+                             (settings["offset_x"], settings["offset_y"]),
+                             (width, height), (screen_w, screen_h))
+        for window in windows:  # box first, so the text window ends up on top
+            # e.g. +-40: negative positions are valid (a screen left of the primary)
+            window.geometry(f"{width}x{height}{left + x:+d}{top + y:+d}")
+            window.deiconify()
+            window.lift()
+    reminder["sets"][0][-1].focus_force()  # so Esc reaches it (it hides every screen)
+    reminder["root"].after(duration_ms, hide, reminder["all"])
 
 
 def tray_images(icon_path: str) -> dict[bool, "Image.Image"]:
@@ -667,7 +730,7 @@ def run(settings: dict) -> None:
     interval_ms = round(settings["interval_minutes"] * 60_000)
     duration_ms = round(settings["duration_seconds"] * 1000)
     count = settings["count"]
-    root, windows = build_window(settings)
+    root, reminder = build_reminder(settings)
     shown = 0
     # Shared with the tray thread, which only reads it; commands go the other way
     state = {"active": True, "job": None, "next": datetime.now()}
@@ -684,7 +747,7 @@ def run(settings: dict) -> None:
         shown += 1
         print(f"[{datetime.now():%H:%M:%S}] reminder {shown}"
               + (f"/{count}" if count else ""))
-        flash(windows, duration_ms, settings)
+        flash(reminder, duration_ms)
         if count and shown >= count:
             root.after(duration_ms + 100, root.quit)  # let the last one finish showing
             return
@@ -693,8 +756,7 @@ def run(settings: dict) -> None:
 
     def blink(times: int) -> None:
         for i in range(times):
-            root.after(i * (BLINK_ON_MS + BLINK_OFF_MS), flash, windows, BLINK_ON_MS,
-                       settings)
+            root.after(i * (BLINK_ON_MS + BLINK_OFF_MS), flash, reminder, BLINK_ON_MS)
 
     def update_tray() -> None:
         if tray:
@@ -715,7 +777,7 @@ def run(settings: dict) -> None:
             blink(1)
             next_reminder(interval_ms)
         elif command == "show":
-            flash(windows, duration_ms, settings)
+            flash(reminder, duration_ms)
         elif command == "startup":
             enabled = not STARTUP_LINK.exists()
             set_startup(enabled)
@@ -734,6 +796,7 @@ def run(settings: dict) -> None:
         root.after(POLL_MS, poll)
 
     print(f"message : {settings['message']}")
+    print("screens : " + ("every screen" if settings["all_screens"] else "primary only"))
     if settings["once"]:
         print(f"once    : now, shown for {settings['duration_seconds']} s")
         root.after(0, remind)

@@ -39,6 +39,7 @@ python main.py --run            # Remind every interval_minutes (as shipped: 8 m
 python main.py --run --no-tray  # Same without the tray icon; stop with Ctrl+C
 python main.py --run --interval 30 --duration 8 --message "Stand up!"
 python main.py --run --count 6  # Stop after 6 reminders
+python main.py --once --primary-only  # Only on the primary screen, not on every one
 python main.py --once --anchor center --offset-x 40 --offset-y 40
                                 # 40 px right of and 40 px above the center
 python main.py --once --anchor top-right --offset-x -40 --offset-y -40 --background-opacity 0.5 --outline-width 0
@@ -50,9 +51,10 @@ python main.py --help           # All flags, with the values your config.yaml se
 
 - While it runs
     - the terminal prints the time of the next reminder
-    - each reminder is borderless and always on top, on the primary screen, at `anchor` + `offset_x` / `offset_y`
+    - each reminder is borderless and always on top, on every screen (`all_screens`, Windows; elsewhere the primary screen), at `anchor` + `offset_x` / `offset_y` on each
+        - screens are looked up at every reminder, so a monitor plugged in while it runs gets the next one
     - as shipped: white text in Linux Libertine G with a 2 px black outline, no box, centered 160 px above the bottom edge
-    - click it or press `Esc` to hide it early
+    - click it or press `Esc` to hide it early (on every screen)
     - tray icon (as shipped three hexagon outlines, grey when off; your own image via `tray_icon`; hover shows the next reminder's time), right-click for the menu
         - **Active**: untick to turn reminders off, tick to turn them on again (blinks once, next reminder one interval later)
         - **Show now**: flash the reminder now (also: double-click the icon)
@@ -100,6 +102,7 @@ python main.py --help           # All flags, with the values your config.yaml se
 | `tray` | `--no-tray` | `true` | tray icon with Active / Show now / Start with Windows / Quit; needs `pystray` and `Pillow` (in `requirements.txt`) |
 | `tray_icon` | — | `assets/icon-four_cubes.png` | tray icon image: a `.png` / `.ico` / `.jpg` path (not `.svg`: Pillow can't read it), absolute or relative to this folder; `""` = built-in drawing (white figure in a green disc); when off, a grey version of it; a missing or unreadable file warns and uses the built-in one; square images look best |
 | `start_with_windows` | — | `false` | run at every login (Windows); each run creates or removes the Startup shortcut to match; the tray item saves its choice here |
+| `all_screens` | `--primary-only` | `true` | show the reminder on every screen, same anchor and offset on each (Windows); `false` = primary screen only; on macOS / Linux always the primary screen |
 | **Position** | | | |
 | `anchor` | `--anchor` | `bottom` | `center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`: the screen point the text box's matching point sits on |
 | `offset_x` | `--offset-x` | `0` | pixels from the anchor; positive = right, negative = left |
