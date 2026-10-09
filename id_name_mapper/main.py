@@ -52,8 +52,9 @@ Run:
     python main.py --help                        all flags; see README.md
 
 Gotchas:
-    - IDs match ignoring case (0x0a3d.png finds 0x0A3D in the mapping); the new name
-      keeps the file's own spelling, so to_id gives back exactly the old name.
+    - IDs match ignoring case, hex IDs by number (0x0a3d.png and 0xA3D.png both find
+      0x0A3D in the mapping); the new name keeps the file's own spelling, so to_id
+      gives back exactly the old name.
     - a name file (backpack-0x0A3C.png) whose mapping name changed gets the new name on
       the next to_name run; one whose ID left the mapping keeps its name.
     - the ID is the part after the last separator, so a name may contain it
@@ -87,6 +88,7 @@ DEFAULTS = {"input_dir": "", "output_dir": "", "mapping": "", "direction": "to_n
 DIRECTIONS = ("to_name", "to_id")
 RELATIVE_TO = ("tool", "cwd")
 IGNORE_KEY = "ignore_folders"  # reserved key in the mapping file, not an ID
+HEX_ID = re.compile(r"0x[0-9a-f]+", re.IGNORECASE)
 # characters Windows forbids in file names; macOS and Linux only forbid "/"
 BAD_NAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -299,6 +301,19 @@ def load_settings(args: argparse.Namespace) -> dict:
     return settings
 
 
+def id_key(file_id: str) -> str:
+    """
+    Returns the form IDs are compared in: hex IDs by number, others ignoring case.
+
+    0x7D0, 0x07D0 and 0x7d0 all give "0x7d0", so a file and the mapping may pad or
+    case a hex ID differently; any other ID (e.g. 2000, item_7) compares as lower-case
+    text.
+    """
+    if HEX_ID.fullmatch(file_id):
+        return f"0x{int(file_id, 16):x}"
+    return file_id.lower()
+
+
 def name_problem(name: str) -> str | None:
     """
     Returns why a mapping name can't become a file path, or None when it can.
@@ -328,12 +343,12 @@ def load_mapping(path: Path) -> tuple[dict[str, str], set[str]]:
     Read as plain text on purpose: YAML would turn 0x0A3C into the number 2620 and
     007 into 7. A "/" (or "\\") in a name makes folders (gump/button). Names that can't
     become a file path (see name_problem), names that would put a file into an ignored
-    folder, and IDs listed twice ignoring case are reported and left out, never
+    folder, and IDs listed twice (see id_key) are reported and left out, never
     silently fixed. ignore_folders (a list, or one name) holds folder names, matched
     ignoring case at any depth; an entry with a "/" is reported and left out.
 
     Returns:
-        ({lower-case ID: name, with "/" between folders}, {lower-case ignored folder}).
+        ({id_key(ID): name, with "/" between folders}, {lower-case ignored folder}).
 
     Raises:
         SystemExit: the file is missing or isn't an `id: name` mapping.
@@ -361,19 +376,19 @@ def load_mapping(path: Path) -> tuple[dict[str, str], set[str]]:
         raise SystemExit(f"Mapping file {path.name} must be `id: name` lines, "
                          "e.g.  0x0A3C: backpack")
     mapping: dict[str, str] = {}
-    first: dict[str, str] = {}  # lower-case ID -> its spelling where first listed
+    first: dict[str, str] = {}  # id_key -> the ID's spelling where first listed
     for file_id, name in data.items():
         name = name.strip().replace("\\", "/")
         hidden = [f for f in name.split("/")[:-1] if f.lower() in ignore]
         problem = ("forbidden character in the ID" if BAD_NAME.search(file_id) else
-                   f"listed twice, also as {first[file_id.lower()]}"
-                   if file_id.lower() in first else name_problem(name) or
+                   f"listed twice, also as {first[id_key(file_id)]}"
+                   if id_key(file_id) in first else name_problem(name) or
                    (f"goes into the ignored folder {hidden[0]}" if hidden else None))
         if problem:
             print(f"mapping: skipped {file_id}: {name!r} ({problem})")
             continue
-        first[file_id.lower()] = file_id
-        mapping[file_id.lower()] = name
+        first[id_key(file_id)] = file_id
+        mapping[id_key(file_id)] = name
     print(f"mapping: {len(mapping)} IDs from {path}")
     if ignore:
         print(f"ignored folders: {', '.join(sorted(ignore))}")
@@ -402,7 +417,7 @@ def new_location(rel: Path, settings: dict,
         if not named:
             return None, "already an ID"
         return (file_id, "") if file_id else (None, "nothing after the separator")
-    name = mapping.get(file_id.lower())
+    name = mapping.get(id_key(file_id))
     if name is None:
         return None, "not in the mapping"
     target = f"{name}{separator}{file_id}"

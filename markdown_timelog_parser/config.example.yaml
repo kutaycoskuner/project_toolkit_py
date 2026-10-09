@@ -1,12 +1,31 @@
 # Committed defaults. The first real run offers to copy this file to config.yaml
 # (gitignored); edit config.yaml, not this file. CLI flags override these values.
-# As shipped it parses the bundled example/input/timelog.md into example/output/.
+# As shipped it reads the bundled example/input/timelog.md and prints its totals.
 #
 # Everything that controls the tool goes here, including your own folders. It needs no
 # secrets, so it has no .env.
 
-pattern: "*.md"               # which files in the input folder to read
-dry_run: false                # true = print the totals, write nothing
+pattern: "*.md"               # which files to read when input is a folder
+write_csv: false              # true = also write the CSV files to output; false = only print
+dry_run: false                # true = write nothing, not even config.yaml (wins over write_csv)
+show_entries: false           # true = also print every session with its duration
+ignore_problems: false        # true = print only the number of problems and exit 0 (problems.csv still written)
+
+# Totals to calculate, any of: day, week (ISO, 2025-W39), month, year, all
+periods: [day, week, month, year, all]
+
+# One total per calendar window counted from today, over every session (date_from and
+# date_to don't apply). Weeks run Monday to Sunday. Any of: this_day, this_week,
+# this_month, this_year, last_day, last_week, last_month, last_year, all; [] = none.
+sum: [this_week, last_week, this_month, last_month]
+
+# Date formats a session line may use, tried in this order (Python strptime codes):
+#   %Y%m%d = 20250927   %d-%b-%Y = 20-Feb-2025   %Y-%m-%d = 2025-09-27   %d.%m.%Y = 27.09.2025
+date_formats: ["%Y%m%d", "%d-%b-%Y", "%Y-%m-%d", "%d.%m.%Y"]
+
+max_session_hours: 12         # longer sessions are not counted, only reported; 0 = no limit
+date_from: null               # only sessions on or after this date, e.g. 2026-01-01
+date_to: null                 # only sessions on or before this date
 
 # Paths: what you type decides absolute vs. relative; relative_to only matters for
 # relative paths. Examples:
@@ -14,5 +33,5 @@ dry_run: false                # true = print the totals, write nothing
 #   input: example/input        -> <this tool's folder>/example/input   (relative_to: tool)
 #   input: notes                -> <folder you run the command in>/notes (relative_to: cwd)
 relative_to: tool             # base for relative paths: "tool" (default) or "cwd"
-input: example/input          # folder with the Markdown time logs
-output: example/output        # folder for sessions.csv and summary.csv (overwritten)
+input: example/input          # a Markdown time log, or a folder of them
+output: example/output        # folder for the CSV files when write_csv is on (overwritten)

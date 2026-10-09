@@ -65,7 +65,7 @@ python main.py --help                           # All flags
     - then `y` applies, anything else cancels; `--dry-run` stops after the preview
 - What `to_name` does with each file
     - `0x0A3C.png` with `0x0A3C: backpack` in the mapping -> `backpack-0x0A3C.png`
-    - IDs match ignoring case: `0x0a3d.png` finds `0x0A3D`, and the new name keeps the file's own spelling (`shield-0x0a3d.png`), so `to_id` gives back exactly the old name
+    - IDs match ignoring case, and hex IDs (`0x...`) by number: `0x0a3d.png` and `0xA3D.png` both find `0x0A3D`; the new name keeps the file's own spelling (`shield-0x0a3d.png`), so `to_id` gives back exactly the old name; other IDs (e.g. `2000`) match as text
     - an already named file whose mapping name changed gets the new name: `healthbar-0x0805.png` -> `health-bar-0x0805.png`
     - a `/` in the name sorts the file into folders: `0x00D4: gump/button` -> `gump/button-0x00D4.png` (folders are created as needed)
     - an already named file in a folder moves when its mapping name changes, e.g. to `ui/button`; folders left empty are removed
@@ -86,7 +86,7 @@ python main.py --help                           # All flags
         ```
 
     - read as plain text, so `0x0A3C` stays `0x0A3C` (plain YAML would turn it into the number 2620) and no quotes are needed
-    - `/` (or `\`) in a name makes folders; every part between them becomes a folder or file name, so a part with `<>:"|?*`, a trailing dot or space, an empty part (`a//b`), `.` or `..`, and an ID listed twice (ignoring case), is reported and left out
+    - `/` (or `\`) in a name makes folders; every part between them becomes a folder or file name, so a part with `<>:"|?*`, a trailing dot or space, an empty part (`a//b`), `.` or `..`, and an ID listed twice (by the same rule: `0x7D0` and `0x07D0` are the same ID), is reported and left out
     - `ignore_folders`: folder names to skip, in both directions; a reserved key, not an ID
 
         ```yaml

@@ -8,7 +8,7 @@
 
 <p align="center">
     <img alt="Python" src="https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white" />
-    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.38.1-blue" />
+    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.40.0-blue" />
     <img alt="Project Start" src="https://img.shields.io/badge/project_start-17_Mar_2024-blue" />
     <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/python-toolbox" />
 </p>
@@ -137,7 +137,7 @@ Resizes every image in a folder to one fixed size (default 1024×1024, set in `c
 Tools to automate and format Markdown documents.
 - `markdown_frontmatter_migrator` (was `markdown_metadata_template_changer`): rewrites the `---` front matter of every Markdown file in a folder to a new template, carrying selected old values over; the template and mapping live in `config.yaml`; see [its README](markdown_frontmatter_migrator/README.md). Last update: `2026-10-04`.
 - `markdown_formatter`: cleans text extracted from PDFs into readable Markdown (paragraphs joined, headings spaced, quotes with citations split); see [its README](markdown_formatter/README.md). Last update: `2026-10-04`.
-- `markdown_timelog_parser`: turns hand-written Markdown time logs (`- 20250927 21.04-22.05`) into `sessions.csv` and `summary.csv` with totals per month and day; see [its README](markdown_timelog_parser/README.md). Last update: `2026-10-04`.
+- `markdown_timelog_parser`: calculates time totals per day, week, month, year and overall from hand-written Markdown time logs (`- 20250927 21.04-22.05 description`), calendar sums (this/last week, month ...), and reports likely mistakes; CSV on request; see [its README](markdown_timelog_parser/README.md). Last update: `2026-10-09`.
 - **Use case**: Formatting and batch-revising Markdown files.
 - **Folders**: [markdown_frontmatter_migrator/](markdown_frontmatter_migrator/), [markdown_formatter/](markdown_formatter/), [markdown_timelog_parser/](markdown_timelog_parser/)
 
