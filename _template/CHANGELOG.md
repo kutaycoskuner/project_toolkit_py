@@ -4,6 +4,15 @@ Each tool copied from `_template/` records the template version it's on in its `
 
 Versions: **major** = the structure or settings contract changed, **minor** = something was added, **patch** = wording or a fix.
 
+## 3.2.0 — 2026-10-06
+- `update_config()` compares instead of checking dates: every run with a `config.yaml` compares its top-level keys with `config.example.yaml`'s; when they differ, it lists the missing keys (defaults used) and unknown keys (ignored) and asks `m` / `r` / `k`. Before, it asked only when the example's modification time was newer, so a copied, synced or restored folder, or a `k` answer, silently stopped the prompt while the keys still differed.
+    - top-level keys only: values are the user's own, and a nested block may hold the user's own entries (e.g. a mapping of field names), so comparing inside it would flag the user's data
+    - comment-only changes to the example don't trigger it
+    - `k` writes nothing (no more `os.utime`) and is asked again on the next run, until the keys match
+- `check_config_keys()` removed: its warning is now part of `update_config()`'s prompt; its call in `load_settings()` is gone.
+- fix `merge_config_text()`: a quoted value containing `#` (e.g. `color: "#ffffff"`) was cut at the `#` and crashed `m`; quoted values are now read whole before the comment.
+- How to upgrade a 3.1.1 tool: replace `update_config()` and the `line_re` lines of `merge_config_text()` with `_template/main.py`'s, delete `check_config_keys()` and its two-line call in `load_settings()`, remove `import os` if nothing else uses it, update the docstring's step 2 and the README's "After an update" notes, then set both versions to 3.2.0.
+
 ## 3.1.1 — 2026-10-04
 - fix `merge_config_text()`: a top-level key followed by a nested block (a mapping or list on the next lines) now gets the user's old value written back as a YAML block. Before, only `key: value` lines were merged: nested settings silently reverted to the example's values on `m`, and the message wrongly listed them as dropped.
 - `merge_config_text()` keeps the example's line when the user's value equals it, so the merged file only differs where the user's values do (before, every value was re-quoted as JSON).

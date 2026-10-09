@@ -1,0 +1,47 @@
+# Committed defaults. The first real run offers to copy this file to config.yaml
+# (gitignored); edit config.yaml, not this file. CLI flags override these values.
+# This tool needs no secrets, so it has no .env.
+# As shipped: outlined white text, no box, centered 160 px above the bottom edge.
+
+message: "Dik dur!"           # text to flash; "\n" (in double quotes) starts a new line
+interval_minutes: 8          # minutes between reminders
+duration_seconds: 1           # seconds each reminder stays visible (shorter than the interval)
+count: 0                      # stop after this many reminders; 0 = until Ctrl+C
+start_blinks: 2               # quick blinks right at start, to show it's running; 0 = none
+tray: true                    # tray icon: Active (off/on), Show now, Start with Windows, Quit
+tray_icon: assets/icon-four_cubes.png  # .png/.ico/.jpg path (absolute, or relative to this
+                              # folder; not .svg); "" = built-in drawing; grey when off
+start_with_windows: false     # true = run at every login (Windows); each run creates or
+                              # removes the Startup shortcut to match; the tray item saves
+                              # its choice here
+all_screens: true             # true = show on every screen (Windows); false = primary
+                              # screen only (also: --primary-only)
+
+# Position on each screen: an anchor, then the distance from it
+#   anchor: center, top, bottom, left, right, top-left, top-right, bottom-left, bottom-right
+#     the text box's matching point sits on it (center on center, top-left corner on the
+#     screen's top-left corner, ...)
+#   offset_x / offset_y: pixels from the anchor; positive x = right, positive y = up
+#   e.g. center, 40, 40      -> 40 px right of and 40 px above the center
+#        top-right, -40, -40 -> 40 px in from the top-right corner
+#        bottom, 0, 60       -> centered, 60 px above the bottom edge (clears the taskbar)
+anchor: bottom
+offset_x: 0
+offset_y: 160
+
+# Font (installed names: python main.py --list-fonts; an unknown name warns and
+# falls back to tkinter's default font)
+font_family: "Linux Libertine G"
+font_size: 72                 # points
+font_bold: true
+font_italic: false
+text_color: "#ffffff"         # any tkinter color: a name ("white") or "#rrggbb"
+
+# Outline around the letters; keeps the text readable on any wallpaper
+outline_width: 2              # pixels; 0 = no outline
+outline_color: "#000000"
+
+# Background box behind the text; its opacity never fades the text itself
+background_opacity: 0         # 0 = no box (text only), 0.5 = half see-through, 1 = solid
+background_color: "#c0392b"   # box color (unused at opacity 0)
+padding: 40                   # pixels between text and box edge (unused at opacity 0)

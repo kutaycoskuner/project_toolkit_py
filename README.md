@@ -1,16 +1,16 @@
 <h1 align="center">
-    Python Toolkit Projects
+    Python Toolbox Project
 </h1>
 
 <h3 align="center">
-    A collection of Python-based toolkit projects for various tasks and utilities.
+    A collection of Python-based toolbox projects for various tasks and utilities.
 </h3>
 
 <p align="center">
     <img alt="Python" src="https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white" />
-    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.33.1-blue" />
+    <img alt="Project Version" src="https://img.shields.io/badge/Version-0.40.0-blue" />
     <img alt="Project Start" src="https://img.shields.io/badge/project_start-17_Mar_2024-blue" />
-    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/project_toolkit_py" />
+    <img alt="Last Update" src="https://img.shields.io/github/last-commit/kutaycoskuner/python-toolbox" />
 </p>
 
 ## Contents
@@ -25,6 +25,8 @@
         - [file_renamer/README.md](file_renamer/README.md): [Folders](file_renamer/README.md#folders) · [Usage](file_renamer/README.md#usage) · [Settings](file_renamer/README.md#settings) · [Setup](file_renamer/README.md#setup-python-environment)
     - [Graph Visualizer](#graph-visualizer): plot a timing cycle for animations
         - [graph_visualizer/README.md](graph_visualizer/README.md): [Folders](graph_visualizer/README.md#folders) · [Usage](graph_visualizer/README.md#usage) · [Settings](graph_visualizer/README.md#settings) · [Setup](graph_visualizer/README.md#setup-python-environment)
+    - [ID-Name Mapper](#id-name-mapper): swap file names between IDs and readable names, from a mapping file
+        - [id_name_mapper/README.md](id_name_mapper/README.md): [Folders](id_name_mapper/README.md#folders) · [Usage](id_name_mapper/README.md#usage) · [Settings](id_name_mapper/README.md#settings) · [Setup](id_name_mapper/README.md#setup-python-environment)
     - [Image Resizer](#image-resizer): resize every image in a folder to one size
         - [image_resizer/README.md](image_resizer/README.md): [Folders](image_resizer/README.md#folders) · [Usage](image_resizer/README.md#usage) · [Settings](image_resizer/README.md#settings) · [Setup](image_resizer/README.md#setup-python-environment)
     - [Markdown Tools](#markdown-tools): front matter migrator, PDF-text formatter, time-log parser
@@ -33,6 +35,8 @@
         - [markdown_timelog_parser/README.md](markdown_timelog_parser/README.md): [Folders](markdown_timelog_parser/README.md#folders) · [Usage](markdown_timelog_parser/README.md#usage) · [Settings](markdown_timelog_parser/README.md#settings) · [Setup](markdown_timelog_parser/README.md#setup-python-environment)
     - [Pixel Matcher](#pixel-matcher): compare frames, measure pixel differences, find an image in an image
         - [pixel_matcher/README.md](pixel_matcher/README.md): [Folders](pixel_matcher/README.md#folders) · [Usage](pixel_matcher/README.md#usage) · [Settings](pixel_matcher/README.md#settings) · [Setup](pixel_matcher/README.md#setup-python-environment)
+    - [Posture Reminder](#posture-reminder): flash a reminder text on the screen at an interval
+        - [posture_reminder/README.md](posture_reminder/README.md): [Folders](posture_reminder/README.md#folders) · [Usage](posture_reminder/README.md#usage) · [Settings](posture_reminder/README.md#settings) · [Setup](posture_reminder/README.md#setup-python-environment)
     - [Repetitive Text](#repetitive-text): write numbered command lines from a template
         - [repetitive_text/README.md](repetitive_text/README.md): [Folders](repetitive_text/README.md#folders) · [Usage](repetitive_text/README.md#usage) · [Settings](repetitive_text/README.md#settings) · [Setup](repetitive_text/README.md#setup-python-environment)
     - [Repetitive XML](#repetitive-xml): generate repetitive XML elements from a pattern
@@ -58,8 +62,8 @@ Each tool is self-contained, with its own virtual environment, settings and READ
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/kutaycoskuner/project_toolkit_py.git
-cd project_toolkit_py
+git clone https://github.com/kutaycoskuner/python-toolbox.git
+cd python-toolbox
 
 # 2. Go to the tool's folder
 cd file_renamer
@@ -117,6 +121,12 @@ Plays a wait → expand → wait → collapse value cycle in real time and plots
 - **Folder**: [graph_visualizer/](graph_visualizer/README.md)
 - **Last update**: `2026-10-04`
 
+### ID-Name Mapper
+Swaps file names between an ID and a readable name: from a mapping file of `id: name` lines, `to_name` renames `0x0A3C.png` to `backpack-0x0A3C.png` (a `/` in a name sorts it into folders: `gump/button-0x00D4.png`) and `to_id` renames it back to the root folder; IDs match ignoring case, collisions and unmapped IDs are reported, in place or as renamed copies, with a preview and a y/n confirmation.
+- **Use case**: Working with folders whose file names must stay IDs for a program to find them, while you need to tell the files apart.
+- **Folder**: [id_name_mapper/](id_name_mapper/README.md)
+- **Last update**: `2026-10-07`
+
 ### Image Resizer
 Resizes every image in a folder to one fixed size (default 1024×1024, set in `config.yaml` or with `--size`) into an output folder; the originals are never changed.
 - **Use case**: Preparing large texture sets for game development or 3D projects.
@@ -127,7 +137,7 @@ Resizes every image in a folder to one fixed size (default 1024×1024, set in `c
 Tools to automate and format Markdown documents.
 - `markdown_frontmatter_migrator` (was `markdown_metadata_template_changer`): rewrites the `---` front matter of every Markdown file in a folder to a new template, carrying selected old values over; the template and mapping live in `config.yaml`; see [its README](markdown_frontmatter_migrator/README.md). Last update: `2026-10-04`.
 - `markdown_formatter`: cleans text extracted from PDFs into readable Markdown (paragraphs joined, headings spaced, quotes with citations split); see [its README](markdown_formatter/README.md). Last update: `2026-10-04`.
-- `markdown_timelog_parser`: turns hand-written Markdown time logs (`- 20250927 21.04-22.05`) into `sessions.csv` and `summary.csv` with totals per month and day; see [its README](markdown_timelog_parser/README.md). Last update: `2026-10-04`.
+- `markdown_timelog_parser`: calculates time totals per day, week, month, year and overall from hand-written Markdown time logs (`- 20250927 21.04-22.05 description`), calendar sums (this/last week, month ...), and reports likely mistakes; CSV on request; see [its README](markdown_timelog_parser/README.md). Last update: `2026-10-09`.
 - **Use case**: Formatting and batch-revising Markdown files.
 - **Folders**: [markdown_frontmatter_migrator/](markdown_frontmatter_migrator/), [markdown_formatter/](markdown_formatter/), [markdown_timelog_parser/](markdown_timelog_parser/)
 
@@ -136,6 +146,12 @@ Compares images pixel by pixel in three modes: `scenes` checks rendered frames a
 - **Use case**: A testing tool for 3D rendering projects, to detect unintended scene changes.
 - **Folder**: [pixel_matcher/](pixel_matcher/README.md)
 - **Last update**: `2026-10-04`
+
+### Posture Reminder
+Flashes a short text ("Dik dur!") on top of everything for a few seconds, every N minutes, until `Ctrl+C`; as shipped, white outlined text without a box near the bottom of the screen. Message, timing, position (anchor + offset), font, outline and an optional background box are set in `config.yaml` or with flags.
+- **Use case**: A reminder to sit or stand straight during long sessions at the computer.
+- **Folder**: [posture_reminder/](posture_reminder/README.md)
+- **Last update**: `2026-10-06`
 
 ### Repetitive Text
 Writes one line per number from `start` to `end` (counting by `step`) into a text file, from a line template such as `pushlist spellbook_scrolls {i}`; all set in `config.yaml` or with flags.
@@ -157,4 +173,4 @@ Turns PDFs into Markdown text files: each page is read from its text layer, and 
 
 ------------------------------------------------------------------------------------------
 
-For bug reports, feature requests and suggestions, please use the [issue tracker](https://github.com/kutaycoskuner/project_toolkit_py/issues).
+For bug reports, feature requests and suggestions, please use the [issue tracker](https://github.com/kutaycoskuner/python-toolbox/issues).
